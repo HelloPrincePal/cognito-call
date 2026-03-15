@@ -1,0 +1,23 @@
+{
+    "manifest_version": 3,
+    "name": "Cognito Call - Local Tab Recorder",
+    "version": "0.1.0",
+    "description": "Record Chrome tabs locally. No cloud, no bots.",
+    "permissions": [
+        "tabCapture",
+        "offscreen",
+        "downloads",
+        "storage"
+    ],
+    "host_permissions": [
+        "<all_urls>"
+    ],
+    "action": {
+        "default_popup": "popup/index.html",
+        "default_title": "Cognito Call"
+    },
+    "background": {
+        "service_worker": "background/service-worker.js"
+    },
+    "offscreen": true
+}

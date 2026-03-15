@@ -1,0 +1,47 @@
+# ==========================================
+# 🚀 Cognito Call - Git Ignore Entries
+# ==========================================
+
+# 📦 Node & Dependencies
+node_modules/
+.pnp
+.pnp.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 🔑 Environment files
+.env*.local
+
+# 🧪 Testing
+playwright-report/
+test-results/
+test-artifacts/
+
+# 🛠️ Extension Builds
+packages/extension/*.crx
+packages/extension/*.zip
+
+# 📁 Output & Temp directories
+CognitoCall/
+*.log
+
+# 💻 IDE & Editors
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# 🍏 macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+
+# 🪟 Windows
+Thumbs.db
+ehthumbs.db
+favicon.ico
