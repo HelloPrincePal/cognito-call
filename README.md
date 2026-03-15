@@ -9,6 +9,9 @@ No cloud. No bots joining calls. No data leaks.
 ## 🎯 Current Status: Phase 1 - Tab Recorder
 
 ✅ Chrome extension records any meeting tab locally
+✅ Captures tab audio + microphone (both sides of the call)
+✅ Optimized file size: VP9 codec, ~8-10 MB per minute
+✅ Human-readable filenames: `CognitoCall_2026-03-15_15-30-25.webm`
 ✅ Saves `.webm` to `~/Downloads/CognitoCall/`
 ✅ Works: Google Meet, Zoom Web, Teams Web, Webex
 

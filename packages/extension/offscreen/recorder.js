@@ -1,27 +1,41 @@
 let mediaRecorder = null;
 let recordedChunks = [];
-let recordingId = null;
+let activeStream = null;
+let micStream = null;
+let audioContext = null;
+let recordingFilename = null;
 
+// ─── Message Listener ───
+// Only handle messages targeted at 'offscreen-doc' (from service worker)
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.target !== 'offscreen-doc') return false;
+
     if (request.action === 'startRecording') {
-        startRecording(request.tabId).then(sendResponse);
-        return true;
+        startRecording(request.streamId).then(sendResponse);
+        return true; // keep channel open for async response
     } else if (request.action === 'stopRecording') {
         stopRecording().then(sendResponse);
         return true;
     }
 });
 
-async function startRecording(tabId) {
-    try {
-        // Get tab media stream
-        const streamId = await chrome.tabCapture.getMediaStreamId({
-            tabId: tabId,
-            audio: true,
-            video: true
-        });
+// ─── Filename Helper ───
+// Generates: CognitoCall_2026-03-15_15-30-25.webm
+function generateFilename() {
+    const now = new Date();
+    const pad = (n) => n.toString().padStart(2, '0');
+    const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const time = `${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+    return `CognitoCall/CognitoCall_${date}_${time}.webm`;
+}
 
-        const stream = await navigator.mediaDevices.getUserMedia({
+async function startRecording(streamId) {
+    try {
+        // ── Clean up any previous session ──
+        cleanupStreams();
+
+        // ── 1. Get the tab stream (video + system/tab audio) ──
+        const tabStream = await navigator.mediaDevices.getUserMedia({
             audio: {
                 mandatory: {
                     chromeMediaSource: 'tab',
@@ -36,49 +50,174 @@ async function startRecording(tabId) {
             }
         });
 
-        mediaRecorder = new MediaRecorder(stream);
+        activeStream = tabStream;
+
+        // ── 2. Try to get microphone stream ──
+        // This captures the user's voice so both sides of the call are recorded
+        try {
+            micStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            });
+            console.log('[Offscreen] Microphone captured successfully');
+        } catch (micError) {
+            console.warn('[Offscreen] Microphone not available, recording tab audio only:', micError.message);
+            micStream = null;
+        }
+
+        // ── 3. Mix audio streams using Web Audio API ──
+        let recordingStream;
+
+        if (micStream && tabStream.getAudioTracks().length > 0) {
+            // Mix tab audio + microphone audio
+            audioContext = new AudioContext();
+            const dest = audioContext.createMediaStreamDestination();
+
+            // Tab audio source
+            const tabAudioSource = audioContext.createMediaStreamSource(
+                new MediaStream(tabStream.getAudioTracks())
+            );
+            tabAudioSource.connect(dest);
+
+            // Microphone audio source
+            const micSource = audioContext.createMediaStreamSource(micStream);
+            micSource.connect(dest);
+
+            // Combined stream = tab video + mixed audio
+            recordingStream = new MediaStream([
+                ...tabStream.getVideoTracks(),
+                ...dest.stream.getAudioTracks()
+            ]);
+
+            console.log('[Offscreen] Audio mixing: tab + microphone');
+        } else {
+            // Fallback: just use the tab stream as-is
+            recordingStream = tabStream;
+            console.log('[Offscreen] Audio: tab only (no mic)');
+        }
+
+        // ── 4. Create MediaRecorder with optimized settings ──
         recordedChunks = [];
+        recordingFilename = generateFilename();
+
+        // VP9 + Opus gives much better compression than VP8
+        // Target: ~8-10 MB per minute instead of ~20 MB per minute
+        const mimeOptions = [
+            'video/webm;codecs=vp9,opus',
+            'video/webm;codecs=vp8,opus',
+            'video/webm'
+        ];
+
+        let selectedMime = mimeOptions.find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
+
+        mediaRecorder = new MediaRecorder(recordingStream, {
+            mimeType: selectedMime,
+            videoBitsPerSecond: 1_000_000,  // 1 Mbps video (was unset = ~2.5 Mbps)
+            audioBitsPerSecond: 128_000     // 128 Kbps audio
+        });
+
+        console.log('[Offscreen] MediaRecorder codec:', selectedMime);
+        console.log('[Offscreen] Bitrate: 1 Mbps video + 128 Kbps audio');
 
         mediaRecorder.ondataavailable = (event) => {
             if (event.data.size > 0) recordedChunks.push(event.data);
         };
 
-        mediaRecorder.onstop = saveRecording;
+        mediaRecorder.onstop = () => {
+            saveRecording();
+        };
 
         mediaRecorder.start(1000); // Collect data every second
 
-        recordingId = Date.now().toString();
-
-        return { success: true, recordingId };
+        console.log('[Offscreen] Recording started:', recordingFilename);
+        return { success: true, recordingId: recordingFilename };
     } catch (error) {
+        console.error('[Offscreen] startRecording error:', error);
         return { success: false, error: error.message };
     }
 }
 
-async function stopRecording() {
+function cleanupStreams() {
     if (mediaRecorder && mediaRecorder.state === 'recording') {
         mediaRecorder.stop();
-        // Stop the stream
-        mediaRecorder.stream.getTracks().forEach(track => track.stop());
     }
-    return { success: true };
+    if (activeStream) {
+        activeStream.getTracks().forEach(track => track.stop());
+        activeStream = null;
+    }
+    if (micStream) {
+        micStream.getTracks().forEach(track => track.stop());
+        micStream = null;
+    }
+    if (audioContext) {
+        audioContext.close().catch(() => {});
+        audioContext = null;
+    }
+}
+
+async function stopRecording() {
+    try {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+        }
+        // Stop all tracks
+        if (activeStream) {
+            activeStream.getTracks().forEach(track => track.stop());
+            activeStream = null;
+        }
+        if (micStream) {
+            micStream.getTracks().forEach(track => track.stop());
+            micStream = null;
+        }
+        if (audioContext) {
+            audioContext.close().catch(() => {});
+            audioContext = null;
+        }
+        console.log('[Offscreen] Recording stopped');
+        return { success: true };
+    } catch (error) {
+        console.error('[Offscreen] stopRecording error:', error);
+        return { success: false, error: error.message };
+    }
 }
 
 async function saveRecording() {
+    if (recordedChunks.length === 0) {
+        console.warn('[Offscreen] No recorded chunks to save.');
+        return;
+    }
+
     const blob = new Blob(recordedChunks, { type: 'video/webm' });
-    const filename = `cognito-call-${recordingId}.webm`;
+    const sizeInMB = (blob.size / (1024 * 1024)).toFixed(2);
+    const filename = recordingFilename || generateFilename();
 
-    // Trigger download
-    chrome.downloads.download({
-        url: URL.createObjectURL(blob),
-        filename: `CognitoCall/${filename}`,
-        saveAs: false
-    });
+    console.log(`[Offscreen] Saving recording: ${filename} (${sizeInMB} MB)`);
 
-    // Notify background
-    chrome.runtime.sendMessage({
-        action: 'recordingSaved',
-        filename: filename,
-        duration: Math.floor((Date.now() - parseInt(recordingId)) / 1000)
-    });
+    // Convert blob to data URL, then send to service worker for download
+    // (offscreen documents do NOT have access to chrome.downloads)
+    const reader = new FileReader();
+    reader.onloadend = () => {
+        // Ask the service worker to trigger the download
+        chrome.runtime.sendMessage({
+            target: 'service-worker',
+            action: 'downloadRecording',
+            dataUrl: reader.result,
+            filename: filename
+        });
+
+        // Also notify that recording was saved
+        chrome.runtime.sendMessage({
+            target: 'service-worker',
+            action: 'recordingSaved',
+            filename: filename,
+            sizeMB: sizeInMB
+        });
+    };
+    reader.readAsDataURL(blob);
+
+    // Clean up
+    recordedChunks = [];
 }
