@@ -5,13 +5,15 @@
 ## [2026-03-16 23:25 IST]
 
 ### 💡 Summary
-Redesigned Extension UI — Professionalized look and high-fidelity branding.
+Redesigned Extension UI — Professionalized look using **Remix Icon** library.
 
 ### 🚀 Why
 - The previous UI was a functional prototype. We established a **Professional Design System** in `design/extension-ui.pen` that aligns with the Cognito Call brand.
 - **Key Design Upgrades:**
   - Integrated the official logo and brand colors (#335CFF).
+  - Switched UI icons to **Remix Icon** library (`ri-` classes) for a consistent, professional look.
   - Added **Trust Badges** ("100% Local", "No Cloud") to reinforce the privacy-first value proposition.
+
   - Designed a dedicated **Recording State** with a red "● REC" badge, pulse indicators, and a high-contrast timer.
   - Standardized on **Inter** typography and 360px responsive layout.
 - **Verification:** Generated screenshots for all states to ensure visual consistency before code implementation.

@@ -22,7 +22,14 @@ cd cognito-call
 ```
 Then navigate to `chrome://extensions/` → **Load unpacked** → select `packages/extension/`
 
+## 🛠 Tech Stack
+
+- **Icons:** [Remix Icon](https://remixicon.com/) (Standard icon library for the project).
+- **Core:** Manifest V3, Web Audio API, Offscreen Documents.
+- **Design:** Inter Typography, Local-first UX.
+
 ## 🛤️ Roadmap
+
 
 | Phase | Status | What |
 | :--- | :--- | :--- |
