@@ -3,6 +3,8 @@ cognito-call/
 ├── CHANGELOG.md                       # Project changelog
 ├── file-structure.md                  # AI reference (update this file)
 ├── VERSION_LOG.md                     # High-level release tracking (SemVer)
+├── design/
+│   └── extension-ui.pen               # UI/UX designs (Pencil)
 ├── docs/
 │   ├── PHASE1-EXTENSION.md            # Phase 1 spec (guardrail)
 │   ├── INSTALL-EXTENSION.md           # User install guide

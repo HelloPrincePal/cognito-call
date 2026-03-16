@@ -2,6 +2,47 @@
 
 ---
 
+## [2026-03-16 23:25 IST]
+
+### 💡 Summary
+Redesigned Extension UI — Professionalized look and high-fidelity branding.
+
+### 🚀 Why
+- The previous UI was a functional prototype. We established a **Professional Design System** in `design/extension-ui.pen` that aligns with the Cognito Call brand.
+- **Key Design Upgrades:**
+  - Integrated the official logo and brand colors (#335CFF).
+  - Added **Trust Badges** ("100% Local", "No Cloud") to reinforce the privacy-first value proposition.
+  - Designed a dedicated **Recording State** with a red "● REC" badge, pulse indicators, and a high-contrast timer.
+  - Standardized on **Inter** typography and 360px responsive layout.
+- **Verification:** Generated screenshots for all states to ensure visual consistency before code implementation.
+
+### 📄 Changed Files
+- `design/extension-ui.pen`
+- `file-structure.md`
+- `packages/extension/manifest.json`
+
+**Status:** ✅ Designed & Store Ready
+
+---
+
+## [2026-03-16 22:14 IST]
+
+
+### 💡 Summary
+Removed unnecessary `<all_urls>` host permission — Chrome Web Store readiness.
+
+### 🚀 Why
+- The `host_permissions: ["<all_urls>"]` field granted the extension access to interact with all websites, but **no code in the extension uses it** — there are no content scripts, no `executeScript()` calls, no cross-origin `fetch()`, and no `webRequest` interception.
+- Removing it has **zero impact** on functionality since all APIs used (`tabCapture`, `offscreen`, `downloads`, `storage`, `tabs`) are covered by the `permissions` array.
+- **Chrome Web Store benefit:** Avoids near-certain rejection for requesting overly broad permissions. Also reduces the scary "Read and change all your data on all websites" install warning for users.
+
+### 📄 Changed Files
+- `packages/extension/manifest.json`
+
+**Status:** ✅ Done
+
+---
+
 ## [2026-03-15 16:20 IST]
 
 ### 💡 Summary

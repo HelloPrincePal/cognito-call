@@ -15,12 +15,29 @@ We follow the **X.Y.Z** semantic versioning format:
 
 | Version | Date | Summary | Key Impact |
 | :--- | :--- | :--- | :--- |
+| **v0.2.1** | 2026-03-16 | **UI Redesign & Store Readiness** | Professional UI & Permission cleanup |
 | **v0.2.0** | 2026-03-15 | **Architecture & Audio Overhaul** | Complete re-architecture & Mic mixing |
+
 | **v0.1.0** | 2026-03-15 | **Initial Prototype** | Basic tab recording proof-of-concept |
 
 ---
 
+## [v0.2.1] — 2026-03-16
+**Git Push Action:** "style: professional extension UI redesign and permission cleanup"
+
+### 🚀 Design & UX
+- **Design System Established:** Created high-fidelity mockups for Idle and Recording states in `design/extension-ui.pen`.
+- **Branding Alignment:** Unified the extension visual identity with the main app (Typography, Colors, Logo).
+- **Trust Signaling:** Added security badges ("100% Local") to the UI to communicate privacy features.
+
+### 🔧 Stability & Compliance
+- **Permission Cleanup:** Removed `<all_urls>` from `manifest.json` to comply with Chrome Web Store minimized permission policy.
+- **Documentation:** Updated `file-structure.md` to track design assets.
+
+---
+
 ## [v0.2.0] — 2026-03-15
+
 **Git Push Action:** "feat: architecture overhaul and microphone audio mixing"
 
 ### 🚀 Major Features
