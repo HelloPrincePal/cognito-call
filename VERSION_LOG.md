@@ -15,10 +15,32 @@ We follow the **X.Y.Z** semantic versioning format:
 
 | Version | Date | Summary | Key Impact |
 | :--- | :--- | :--- | :--- |
+| **v0.2.3** | 2026-03-23 | **Icon Reliability & Layout Fixes** | Pixel-perfect popup & CSP-safe icons |
+| **v0.2.2** | 2026-03-19 | **Professional UI Implementation** | High-fidelity UI & Lucide Transition |
 | **v0.2.1** | 2026-03-16 | **UI Redesign & Store Readiness** | Professional UI & Permission cleanup |
 | **v0.2.0** | 2026-03-15 | **Architecture & Audio Overhaul** | Complete re-architecture & Mic mixing |
 
 | **v0.1.0** | 2026-03-15 | **Initial Prototype** | Basic tab recording proof-of-concept |
+
+---
+
+## [v0.2.3] — 2026-03-23
+**Git Push Action:** "style: pixel-perfect popup UI and CSP-safe inline icons"
+
+### 🚀 Implementation
+- **CSP Compliance:** Switched to **Inline SVGs** for all popup icons, solving CSP blocking issues common in Chrome extensions.
+- **Pixel-Perfect Alignment:** Corrected badge spacing (20px gap from button), component grouping, and header-body hierarchy to match the Pencil design system.
+- **Branding:** Integrated the PNG logo assets and added a 16px corner radius for a native app feel.
+
+---
+
+## [v0.2.2] — 2026-03-19
+**Git Push Action:** "feat: professional UI redesign with Lucide icons"
+
+### 🚀 Implementation
+- **Full UI Implementation:** Translated high-fidelity Pencil designs into production code for `mic.html` and the extension popup.
+- **Lucide Transition:** Switched all UI assets to **Lucide Icons** from emojis and Remix Icons for a consistent and professional visual experience.
+- **Polished States:** Added pulse animations for recording and a clear distinction between 'Idle' and 'In Progress' views.
 
 ---
 

@@ -1,4 +1,5 @@
 const grantBtn = document.getElementById('grantBtn');
+const btnLabel = document.getElementById('btnLabel');
 const statusEl = document.getElementById('status');
 
 // Check if already persistently granted
@@ -22,7 +23,7 @@ async function checkExistingPermission() {
 
 grantBtn.onclick = async () => {
     grantBtn.disabled = true;
-    grantBtn.textContent = 'Requesting…';
+    btnLabel.textContent = 'Requesting…';
     statusEl.textContent = '';
 
     try {
@@ -51,7 +52,7 @@ grantBtn.onclick = async () => {
             // User chose "Only this time" — not enough for the offscreen document
             await chrome.storage.local.remove('micPermissionGranted');
             grantBtn.disabled = false;
-            grantBtn.textContent = 'Grant Microphone Access';
+            btnLabel.textContent = 'Grant Microphone Access';
             statusEl.className = 'error';
             statusEl.innerHTML = `
                 <strong>⚠️ You selected "Only this time"</strong><br><br>
@@ -62,7 +63,7 @@ grantBtn.onclick = async () => {
         }
     } catch (err) {
         grantBtn.disabled = false;
-        grantBtn.textContent = 'Grant Microphone Access';
+        btnLabel.textContent = 'Grant Microphone Access';
 
         if (err.name === 'NotAllowedError') {
             statusEl.className = 'error';
@@ -76,7 +77,7 @@ grantBtn.onclick = async () => {
 
 function showGranted() {
     grantBtn.disabled = true;
-    grantBtn.textContent = '✅ Access Granted Permanently';
+    btnLabel.textContent = 'Access Granted Permanently';
     grantBtn.style.background = '#374151';
     statusEl.className = 'success';
     statusEl.textContent = 'Microphone access granted! You can close this tab and start recording.';

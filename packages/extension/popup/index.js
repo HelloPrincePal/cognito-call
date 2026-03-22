@@ -17,42 +17,33 @@ document.getElementById('startBtn').onclick = async () => {
         updateUI('starting');
 
         // ── Step 1: Verify microphone permission ──
-        // Neither popups nor offscreen documents can show Chrome's mic
-        // permission prompt (both get "Permission dismissed").
-        // We verify the ACTUAL permission state, not just a stored flag.
         let micReady = false;
         try {
             const result = await navigator.permissions.query({ name: 'microphone' });
             micReady = (result.state === 'granted');
         } catch (e) {
-            // Fallback to stored flag if permissions.query doesn't work
             const { micPermissionGranted } = await chrome.storage.local.get('micPermissionGranted');
             micReady = !!micPermissionGranted;
         }
 
         if (!micReady) {
-            // Clear any stale stored flag
             await chrome.storage.local.remove('micPermissionGranted');
-            // Open the permissions page in a new tab
             showStatus('Opening mic permissions page…');
             chrome.tabs.create({
                 url: chrome.runtime.getURL('permissions/mic.html')
             });
             updateUI('stopped');
-            showStatus('Grant mic access in the new tab (choose "Allow"), then try again.', 'info');
+            showStatus('Grant mic access in the new tab, then try again.', 'error');
             return;
         }
 
         showStatus('Starting capture…');
 
-        // ── Step 2: Get the active tab ──
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab) {
             throw new Error('No active tab found.');
         }
 
-        // ── Step 3: Ask the service worker to handle everything ──
-        // (tabCapture + offscreen document + start recording)
         const response = await chrome.runtime.sendMessage({
             target: 'service-worker-from-popup',
             action: 'startRecording',
@@ -60,7 +51,6 @@ document.getElementById('startBtn').onclick = async () => {
         });
 
         if (response && response.success) {
-            // Storage is already set by the service worker, but read it for the timer
             const data = await chrome.storage.local.get(['recordingStartTime']);
             startTime = data.recordingStartTime || Date.now();
             startTimer();
@@ -117,30 +107,31 @@ function stopTimer() {
 // ─── UI Helpers ───
 
 function updateUI(state) {
+    const idleView = document.getElementById('idle-view');
+    const recordingView = document.getElementById('recording-view');
+    const recBadge = document.getElementById('rec-badge');
     const startBtn = document.getElementById('startBtn');
-    const stopBtn = document.getElementById('stopBtn');
-    const timer = document.getElementById('timer');
+    const startBtnLabel = document.getElementById('startBtnLabel');
 
     if (state === 'recording') {
-        startBtn.style.display = 'none';
-        stopBtn.style.display = 'block';
-        timer.style.display = 'block';
+        idleView.style.display = 'none';
+        recordingView.style.display = 'flex';
+        recBadge.style.display = 'flex';
     } else if (state === 'starting') {
         startBtn.disabled = true;
-        startBtn.textContent = 'Starting…';
+        startBtnLabel.textContent = 'Starting…';
     } else {
-        // stopped
-        startBtn.style.display = 'block';
+        // stopped / idle
+        idleView.style.display = 'flex';
+        recordingView.style.display = 'none';
+        recBadge.style.display = 'none';
         startBtn.disabled = false;
-        startBtn.textContent = 'Start Recording';
-        stopBtn.style.display = 'none';
-        timer.style.display = 'none';
-        timer.textContent = '00:00';
+        startBtnLabel.textContent = 'Start Recording';
     }
 }
 
 function showStatus(message, type = 'info') {
     const statusEl = document.getElementById('status');
     statusEl.textContent = message;
-    statusEl.style.color = type === 'error' ? '#fecaca' : type === 'success' ? '#bbf7d0' : 'white';
+    statusEl.className = type === 'error' ? 'error' : type === 'success' ? 'success' : '';
 }

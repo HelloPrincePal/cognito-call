@@ -1,4 +1,5 @@
 # 🚀 Cognito Call
+![Version 0.2.3](https://img.shields.io/badge/version-0.2.3-blue)
 
 **Local-first meeting recorder.** Record Chrome tabs (Meet/Zoom/Teams) → save `.webm` locally → AI summaries (coming soon).
 
@@ -24,7 +25,7 @@ Then navigate to `chrome://extensions/` → **Load unpacked** → select `packag
 
 ## 🛠 Tech Stack
 
-- **Icons:** [Remix Icon](https://remixicon.com/) (Standard icon library for the project).
+- **Icons:** [Lucide Icons](https://lucide.dev/) (Used in both design and code).
 - **Core:** Manifest V3, Web Audio API, Offscreen Documents.
 - **Design:** Inter Typography, Local-first UX.
 

@@ -4,7 +4,11 @@
 <head>
     <meta charset="utf-8">
     <title>Cognito Call — Microphone Access</title>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
         * {
             margin: 0;
             padding: 0;
@@ -16,132 +20,244 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            color: #e0e0e0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #111827;
+            color: #111827;
+            padding: 24px;
         }
 
         .card {
-            background: rgba(255, 255, 255, 0.06);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            padding: 48px;
+            background: #ffffff;
+            border-radius: 24px;
+            padding: 40px;
             max-width: 480px;
+            width: 100%;
             text-align: center;
+            box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.25);
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
         }
 
-        .icon {
-            font-size: 48px;
-            margin-bottom: 16px;
+        .brand-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-align: left;
+            padding-bottom: 24px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .logo {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(180deg, #335CFF 0%, #0A1F73 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .logo-dot {
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+        }
+
+        .brand-text h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #171717;
+            letter-spacing: -0.2px;
+            line-height: 1.2;
+        }
+
+        .brand-text p {
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: 400;
+        }
+
+        .status-icon-container {
+            width: 80px;
+            height: 80px;
+            background: #f0f4ff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+        }
+
+        .status-icon-container i {
+            color: #335cff;
         }
 
         h1 {
             font-size: 22px;
             font-weight: 700;
-            margin-bottom: 12px;
-            color: #fff;
+            color: #171717;
+            letter-spacing: -0.3px;
         }
 
-        p {
+        .description {
             font-size: 14px;
             line-height: 1.6;
-            margin-bottom: 24px;
-            color: #a0aec0;
+            color: #6b7280;
         }
 
-        .points {
+        .checklist {
             text-align: left;
-            margin-bottom: 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
         }
 
-        .points li {
-            list-style: none;
-            padding: 6px 0;
+        .check-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
             font-size: 13px;
-            color: #cbd5e1;
+            color: #374151;
         }
 
-        .points li::before {
-            content: '✓ ';
+        .check-item i {
             color: #10b981;
-            font-weight: bold;
+            flex-shrink: 0;
         }
 
         #grantBtn {
             width: 100%;
             padding: 14px 24px;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 600;
             border: none;
-            border-radius: 10px;
+            border-radius: 12px;
             cursor: pointer;
-            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            background: #335cff;
             color: white;
-            transition: transform 0.15s, box-shadow 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: background 0.2s;
         }
 
         #grantBtn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+            background: #2547d0;
         }
 
         #grantBtn:disabled {
-            background: #374151;
+            background: #9ca3af;
             cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
+        }
+
+        .warning-banner {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: 10px;
+            padding: 12px 14px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            text-align: left;
+        }
+
+        .warning-banner i {
+            color: #d97706;
+            margin-top: 2px;
+        }
+
+        .warning-text {
+            font-size: 12px;
+            line-height: 1.5;
+            color: #92400e;
+        }
+
+        .footer-note {
+            font-size: 11px;
+            color: #9ca3af;
         }
 
         #status {
-            margin-top: 16px;
             font-size: 14px;
             font-weight: 500;
             min-height: 20px;
         }
 
         .success { color: #10b981; }
-        .error { color: #f87171; }
-
-        .note {
-            margin-top: 24px;
-            font-size: 11px;
-            color: #64748b;
-        }
+        .error { color: #ef4444; }
     </style>
 </head>
 
 <body>
     <div class="card">
-        <div class="icon">🎤</div>
-        <h1>Microphone Access Required</h1>
-        <p>
-            Cognito Call needs your microphone to record
-            <strong>your side</strong> of the conversation. Without it,
-            only the other participants' audio will be captured.
-        </p>
+        <header class="brand-header">
+            <div class="logo">
+                <div class="logo-dot"></div>
+            </div>
+            <div class="brand-text">
+                <h2>Cognito Call</h2>
+                <p>Microphone Permission</p>
+            </div>
+        </header>
 
-        <ul class="points">
-            <li>Audio stays 100% local — never uploaded</li>
-            <li>Only active during recording</li>
-            <li>You can revoke access anytime in Chrome settings</li>
-        </ul>
+        <main style="display: flex; flex-direction: column; gap: 24px;">
+            <div class="status-icon-container">
+                <i data-lucide="mic" size="36"></i>
+            </div>
 
-        <button id="grantBtn">Grant Microphone Access</button>
-        <div id="status"></div>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <h1>Microphone Access Required</h1>
+                <p class="description">
+                    Cognito Call needs your microphone to record your side of the conversation. Without it, only the other participants' audio will be captured.
+                </p>
+            </div>
 
-        <p class="note" style="color: #fbbf24; font-size: 12px; margin-top: 16px;">
-            ⚠️ <strong>Important:</strong> When Chrome asks, choose <strong>"Allow"</strong> —
-            not "Only this time". Temporary permissions don't work for background recording.
-        </p>
+            <div class="checklist">
+                <div class="check-item">
+                    <i data-lucide="circle-check" size="18"></i>
+                    <span>Audio stays 100% local — never uploaded</span>
+                </div>
+                <div class="check-item">
+                    <i data-lucide="circle-check" size="18"></i>
+                    <span>Only active during recording</span>
+                </div>
+                <div class="check-item">
+                    <i data-lucide="circle-check" size="18"></i>
+                    <span>You can revoke access anytime in Chrome settings</span>
+                </div>
+            </div>
 
-        <p class="note">
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+                <button id="grantBtn">
+                    <i data-lucide="shield-check" size="18"></i>
+                    <span id="btnLabel">Grant Microphone Access</span>
+                </button>
+                <div id="status"></div>
+            </div>
+
+            <div class="warning-banner">
+                <i data-lucide="triangle-alert" size="18"></i>
+                <p class="warning-text">
+                    When Chrome asks, choose <strong>"Allow"</strong> — not "Only this time". Temporary permissions don't work for background recording.
+                </p>
+            </div>
+        </main>
+
+        <footer class="footer-note">
             This page will close automatically after access is granted.
-            You can then start recording from the extension popup.
-        </p>
+        </footer>
     </div>
 
     <script src="mic.js"></script>
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+    </script>
 </body>
 
 </html>

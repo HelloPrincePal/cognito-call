@@ -4,11 +4,13 @@ cognito-call/
 ├── file-structure.md                  # AI reference (update this file)
 ├── VERSION_LOG.md                     # High-level release tracking (SemVer)
 ├── design/
-│   └── extension-ui.pen               # UI/UX designs (Pencil)
+│   ├── extension-ui.pen               # UI/UX designs (Pencil)
+│   ├── design.md                      # Design system documentation
+│   └── images/                        # Exported UI assets
 ├── docs/
 │   ├── PHASE1-EXTENSION.md            # Phase 1 spec (guardrail)
 │   ├── INSTALL-EXTENSION.md           # User install guide
-│   └── DISCLAIMER.md                  # User install guide
+│   └── DISCLAIMER.md                  # Legal & privacy disclaimer
 ├── packages/
 │   └── extension/                     # Phase 1 ONLY
 │       ├── manifest.json
