@@ -75,4 +75,4 @@ For complete installation instructions, check out our [Install Guide](docs/INSTA
 ---
 
 Built with ❤️ by Prince Pal  
-📫 Contact: [HelloPrincePal@gmail.com](mailto:HelloPrincePal@gmail.com)
+📫 Contact: [HelloPrincePal@gmail.com](mailto:HelloPrincePal@gmail.com)# test
