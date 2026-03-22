@@ -15,17 +15,16 @@
 
         body {
             width: 360px;
+            min-height: 440px;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background-color: #ffffff;
-            color: #111827;
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            min-height: 440px;
             border-radius: 16px;
         }
 
-        /* Icons */
+        /* Icons base */
         .icon {
             display: inline-block;
             vertical-align: middle;
@@ -36,13 +35,14 @@
             stroke-linejoin: round;
         }
 
-        /* Header */
+        /* ============================================
+           Header (DcHXc / 4d8fH): padding:[16,20], gap:12
+           ============================================ */
         .header {
             display: flex;
             align-items: center;
             justify-content: space-between;
             padding: 16px 20px;
-            background-color: #ffffff;
             flex-shrink: 0;
         }
 
@@ -57,6 +57,13 @@
             height: 36px;
             object-fit: contain;
             flex-shrink: 0;
+        }
+
+        /* Brand text (pR3y6 / ccJtL): gap:2 */
+        .brand-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
         }
 
         .brand-text h1 {
@@ -74,17 +81,18 @@
             line-height: 1.2;
         }
 
+        /* REC Badge (FtWW0): padding:[6,12], radius:100, gap:6, fill:#fef2f2 */
         .rec-badge {
             background: #fef2f2;
-            color: #dc2626;
             padding: 6px 12px;
             border-radius: 100px;
             font-size: 11px;
             font-weight: 700;
+            color: #dc2626;
+            letter-spacing: 0.5px;
             display: none;
             align-items: center;
             gap: 6px;
-            letter-spacing: 0.5px;
         }
 
         .rec-dot {
@@ -94,6 +102,7 @@
             border-radius: 50%;
         }
 
+        /* Divider (bYYpz / LvpNX): height:1, fill:#f3f4f6 */
         .divider {
             height: 1px;
             background-color: #f3f4f6;
@@ -101,17 +110,19 @@
             flex-shrink: 0;
         }
 
-        /* Main Content */
+        /* ============================================
+           Body (ZGc3w / 8Kuws): padding:24, gap:20,
+           layout:vertical, height:fill_container
+           ============================================ */
         .content {
             padding: 24px;
             display: flex;
             flex-direction: column;
             align-items: center;
             flex: 1;
-            background-color: #ffffff;
         }
 
-        /* State Views */
+        /* State views — gap:20 matches Body gap */
         #idle-view, #recording-view {
             width: 100%;
             display: flex;
@@ -124,58 +135,71 @@
             display: none;
         }
 
-        /* Idle Specifics */
+        /* ============================================
+           Idle State elements
+           ============================================ */
+
+        /* Status Icon Container (sGruk): 64x64, radius:32, fill:#f0f4ff */
         .icon-circle {
             width: 64px;
             height: 64px;
             background: #f0f4ff;
-            border-radius: 50%;
+            border-radius: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: #335cff;
         }
 
+        /* statusTitle (GHJap): fontSize:20, fontWeight:600, letterSpacing:-0.3 */
         .ready-title {
             font-size: 20px;
             font-weight: 600;
             color: #171717;
             letter-spacing: -0.3px;
+            text-align: center;
         }
 
+        /* statusDesc (tGHmO): fontSize:13, lineHeight:1.5, color:#6b7280 */
         .ready-desc {
             font-size: 13px;
             line-height: 1.5;
             color: #6b7280;
-            max-width: 100%;
+            width: 100%;
             text-align: center;
         }
 
-        /* Recording Specifics */
+        /* ============================================
+           Recording State elements
+           ============================================ */
+
+        /* Recording Pulse (C7c7V): 72x72, radius:36, fill:#fef2f2 */
         .pulse-container {
             width: 72px;
             height: 72px;
             background: #fef2f2;
-            border-radius: 50%;
+            border-radius: 36px;
             display: flex;
             align-items: center;
             justify-content: center;
         }
 
+        /* Inner Circle (tGlRh): 52x52, radius:26, fill:#fee2e2 */
         .pulse-inner {
             width: 52px;
             height: 52px;
             background: #fee2e2;
-            border-radius: 50%;
+            border-radius: 26px;
             display: flex;
             align-items: center;
             justify-content: center;
             animation: pulse-ring 2s infinite;
         }
 
+        /* Red Dot (eUJ9c): 20x20, fill:#ef4444 */
         .pulse-dot {
-            width: 12px;
-            height: 12px;
+            width: 20px;
+            height: 20px;
             background: #ef4444;
             border-radius: 50%;
         }
@@ -186,27 +210,35 @@
             100% { transform: scale(0.95); opacity: 0.8; }
         }
 
+        /* recTitle (Oip5y): fontSize:20, fontWeight:600, letterSpacing:-0.3 */
         .recording-title {
             font-size: 20px;
             font-weight: 600;
             color: #171717;
             letter-spacing: -0.3px;
+            text-align: center;
         }
 
+        /* timerDisplay (mqq7i): fontSize:40, fontWeight:700, letterSpacing:-1 */
         #timer {
             font-size: 40px;
             font-weight: 700;
             color: #171717;
             letter-spacing: -1px;
             font-variant-numeric: tabular-nums;
+            text-align: center;
         }
 
+        /* captureInfo (XSk5t): fontSize:13, color:#6b7280 */
         .capturing-text {
             font-size: 13px;
             color: #6b7280;
+            text-align: center;
         }
 
-        /* Buttons */
+        /* ============================================
+           Buttons: height:48, radius:12, padding:[12,24], gap:8
+           ============================================ */
         .btn {
             width: 100%;
             height: 48px;
@@ -223,6 +255,7 @@
             transition: all 0.2s;
         }
 
+        /* Start Button (XbLUg): fill:#335cff */
         #startBtn {
             background: #335cff;
             color: white;
@@ -231,6 +264,7 @@
         #startBtn:hover { background: #2547d0; }
         #startBtn:disabled { background: #9ca3af; cursor: not-allowed; }
 
+        /* Stop Button (hnc3x): fill:#ef4444 */
         #stopBtn {
             background: #ef4444;
             color: white;
@@ -238,7 +272,10 @@
 
         #stopBtn:hover { background: #dc2626; }
 
-        /* Badges */
+        /* ============================================
+           Info Badges (AyqIw / 6GDVV): gap:8, justify:center
+           Badge: padding:[4,10], radius:100, gap:4
+           ============================================ */
         .info-badges {
             display: flex;
             align-items: center;
@@ -257,14 +294,21 @@
             font-weight: 500;
         }
 
+        /* Badge Local: fill:#f0fdf4, color:#15803d */
         .badge-local {
             background: #f0fdf4;
             color: #15803d;
         }
 
+        /* Badge Cloud: fill:#faf5ff, color:#7c3aed */
         .badge-cloud {
             background: #faf5ff;
-            color: #7e22ce;
+            color: #7c3aed;
+        }
+
+        /* Status message */
+        #status:empty {
+            display: none;
         }
 
         #status {
@@ -272,16 +316,15 @@
             font-size: 12px;
             text-align: center;
             color: #6b7280;
-            min-height: 20px;
-            background-color: #ffffff;
         }
-        
+
         #status.success { color: #15803d; }
         #status.error { color: #dc2626; }
     </style>
 </head>
 
 <body>
+    <!-- Header -->
     <header class="header">
         <div class="brand-info">
             <img src="../icons/icon48.png" alt="Logo" class="logo">
@@ -296,27 +339,33 @@
         </div>
     </header>
 
+    <!-- Divider -->
     <div class="divider"></div>
 
+    <!-- Body -->
     <main class="content">
         <!-- Idle State -->
         <div id="idle-view">
             <div class="icon-circle">
-                <svg class="icon" width="28" height="28" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v1a7 7 0 0 1-14 0v-1"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                <!-- micIconNew (OLTBe): lucide mic, 28x28 -->
+                <svg class="icon" width="28" height="28" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" x2="12" y1="19" y2="22"></line></svg>
             </div>
             <h2 class="ready-title">Ready to Record</h2>
             <p class="ready-desc">Capture this tab's audio, video, and your microphone, all saved locally.</p>
             <button id="startBtn" class="btn">
+                <!-- recIconNew (jyhKf): lucide circle, 16x16 -->
                 <svg class="icon" width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle></svg>
                 <span id="startBtnLabel">Start Recording</span>
             </button>
             <div class="info-badges">
                 <div class="badge badge-local">
+                    <!-- lockIcon1 (JAFIE): lucide lock, 12x12 -->
                     <svg class="icon" width="12" height="12" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 1 1 10 0v4"></path></svg>
                     100% Local
                 </div>
                 <div class="badge badge-cloud">
-                    <svg class="icon" width="12" height="12" viewBox="0 0 24 24"><path d="M17.58 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path><line x1="2" y1="2" x2="22" y2="22"></line></svg>
+                    <!-- cloudIcon1 (k7UA8): lucide cloud-off, 12x12 -->
+                    <svg class="icon" width="12" height="12" viewBox="0 0 24 24"><path d="M17.58 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path><line x1="2" x2="22" y1="2" y2="22"></line></svg>
                     No Cloud
                 </div>
             </div>
@@ -333,22 +382,26 @@
             <div id="timer">00:00</div>
             <p class="capturing-text">Capturing tab audio + microphone</p>
             <button id="stopBtn" class="btn">
-                <svg class="icon" width="16" height="16" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+                <!-- stopIconNew (SXtc2): lucide square, 14x14 -->
+                <svg class="icon" width="14" height="14" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
                 Stop Recording
             </button>
             <div class="info-badges">
                 <div class="badge badge-local">
+                    <!-- lockIcon2 (mm5mF): lucide lock, 12x12 -->
                     <svg class="icon" width="12" height="12" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 1 1 10 0v4"></path></svg>
                     100% Local
                 </div>
                 <div class="badge badge-cloud">
-                    <svg class="icon" width="12" height="12" viewBox="0 0 24 24"><path d="M17.58 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path><line x1="2" y1="2" x2="22" y2="22"></line></svg>
+                    <!-- cloudIcon2 (F1bT4): lucide cloud-off, 12x12 -->
+                    <svg class="icon" width="12" height="12" viewBox="0 0 24 24"><path d="M17.58 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path><line x1="2" x2="22" y1="2" y2="22"></line></svg>
                     No Cloud
                 </div>
             </div>
         </div>
     </main>
 
+    <!-- Status (hidden when empty) -->
     <div id="status"></div>
 
     <script src="index.js"></script>

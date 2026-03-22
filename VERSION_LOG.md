@@ -15,12 +15,23 @@ We follow the **X.Y.Z** semantic versioning format:
 
 | Version | Date | Summary | Key Impact |
 | :--- | :--- | :--- | :--- |
+| **v0.2.4** | 2026-03-23 | **Meticulous Design Parity** | 1:1 parity & Boss Design System |
 | **v0.2.3** | 2026-03-23 | **Icon Reliability & Layout Fixes** | Pixel-perfect popup & CSP-safe icons |
 | **v0.2.2** | 2026-03-19 | **Professional UI Implementation** | High-fidelity UI & Lucide Transition |
 | **v0.2.1** | 2026-03-16 | **UI Redesign & Store Readiness** | Professional UI & Permission cleanup |
 | **v0.2.0** | 2026-03-15 | **Architecture & Audio Overhaul** | Complete re-architecture & Mic mixing |
 
 | **v0.1.0** | 2026-03-15 | **Initial Prototype** | Basic tab recording proof-of-concept |
+
+---
+
+## [v0.2.4] — 2026-03-23
+**Git Push Action:** "style: meticulous design parity with flat sibling layout architecture"
+
+### 🚀 Implementation
+- **Layout Overhaul:** Implemented a pure **Flat Sibling layout** for both the permissions card and extension popup. Spacing is maintained purely via root-level `gap` properties (24px for Card, 20px for Popup), eliminating dual-margin bugs and enforcing pixel-perfect vertical symmetry.
+- **Node Parity:** Finalized exact values for the Recording Pulse (20px dot), Stop Icon (14px), and Badge Colors (#7c3aed), achieving 1:1 parity with Pencil node data (eUJ9c, SXtc2).
+- **Design System Asset:** Completely overhauled `design/design.md` into the project's **Boss Design File**, featuring tabular tokens, component tree diagrams, and direct Pencil-to-Code node mappings.
 
 ---
 

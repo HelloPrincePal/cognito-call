@@ -2,6 +2,29 @@
 
 ---
 
+## [2026-03-23 01:15 IST]
+
+### 💡 Summary
+Achieved **1:1 Design Parity** for both Permissions and Popup surfaces with a total overhaul of the layout architecture.
+
+### 🚀 Why
+- **Meticulous Symmetry:** Switched to a **Flat Sibling Architecture** inside flex containers to eliminate margin-stacking bugs. Spacing is now controlled exclusively via the `gap: 24px` rule (LSQU5) for perfect vertical symmetry.
+- **Node-Exact Values:** 
+  - Adjusted the **Recording Pulse** dot to exactly 20px (eUJ9c).
+  - Fixed the **Stop icon size** to exactly 14px (SXtc2).
+  - Standardized the **Badge/Cloud color** to exact hex `#7c3aed`.
+- **Systematic Documentation:** Overhauled `design/design.md` into a "Boss File" using the Google Stitch `design-md` format, mapping every UI token and component to its specific Pencil Node ID.
+- **UX Polish:** 
+  - Updated the permission alert text for better clarity on "Only this time" persistence.
+  - Reduced CTA-to-Banner spacing to 24px for tighter visual grouping.
+
+### 📄 Changed Files
+- `packages/extension/permissions/mic.html`
+- `packages/extension/popup/index.html`
+- `design/design.md`
+
+---
+
 ## [2026-03-23 00:20 IST]
 
 ### 💡 Summary

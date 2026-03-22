@@ -4,8 +4,6 @@
 <head>
     <meta charset="utf-8">
     <title>Cognito Call — Microphone Access</title>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
@@ -22,49 +20,48 @@
             justify-content: center;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background-color: #111827;
-            color: #111827;
             padding: 24px;
         }
 
+        /* ============================================================
+           Card container — ALL spacing comes from gap: 24px.
+           Every direct child is a sibling. No extra margins needed.
+           Matches Pencil LSQU5: layout:vertical, gap:24, padding:40
+           ============================================================ */
         .card {
             background: #ffffff;
             border-radius: 24px;
             padding: 40px;
-            max-width: 480px;
-            width: 100%;
+            width: 480px;
             text-align: center;
-            box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+            border: 1px solid #ebebeb;
             display: flex;
             flex-direction: column;
             gap: 24px;
+            align-items: center;
         }
 
+        /* --- Logo Row (4pm85) gap:12 --- */
         .brand-header {
             display: flex;
             align-items: center;
             gap: 12px;
             text-align: left;
-            padding-bottom: 24px;
-            border-bottom: 1px solid #f3f4f6;
+            width: 100%;
         }
 
-        .logo {
+        .logo-img {
             width: 36px;
             height: 36px;
-            background: linear-gradient(180deg, #335CFF 0%, #0A1F73 100%);
             border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             flex-shrink: 0;
-            position: relative;
         }
 
-        .logo-dot {
-            width: 8px;
-            height: 8px;
-            background: white;
-            border-radius: 50%;
+        .brand-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px; /* fpJIa gap:2 */
         }
 
         .brand-text h2 {
@@ -81,57 +78,76 @@
             font-weight: 400;
         }
 
+        /* --- Divider (U9uLv) --- */
+        .divider {
+            width: 100%;
+            height: 1px;
+            background-color: #f3f4f6;
+        }
+
+        /* --- Mic Icon Circle (1H3FB) 80x80, radius 40 --- */
         .status-icon-container {
             width: 80px;
             height: 80px;
             background: #f0f4ff;
-            border-radius: 50%;
+            border-radius: 40px;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto;
         }
 
-        .status-icon-container i {
+        .status-icon-container svg {
             color: #335cff;
         }
 
+        /* --- Heading (zEgQI) --- */
         h1 {
             font-size: 22px;
             font-weight: 700;
             color: #171717;
             letter-spacing: -0.3px;
+            line-height: 1.2;
         }
 
+        /* --- Description (zZHbm) --- */
         .description {
             font-size: 14px;
             line-height: 1.6;
             color: #6b7280;
+            width: 100%;
         }
 
+        /* --- Checklist (TztIw) gap:12 --- */
         .checklist {
             text-align: left;
             display: flex;
             flex-direction: column;
             gap: 12px;
+            width: 100%;
         }
 
         .check-item {
             display: flex;
             align-items: center;
             gap: 10px;
-            font-size: 13px;
-            color: #374151;
         }
 
-        .check-item i {
+        .check-item span {
+            font-size: 13px;
+            color: #374151;
+            font-weight: 400;
+        }
+
+        .check-item svg {
             color: #10b981;
             flex-shrink: 0;
         }
 
+        /* --- Grant Button (tt7H8) height:48, radius:12, padding:[12,24], gap:8 --- */
         #grantBtn {
             width: 100%;
-            padding: 14px 24px;
+            height: 48px;
+            padding: 12px 24px;
             font-size: 15px;
             font-weight: 600;
             border: none;
@@ -151,10 +167,11 @@
         }
 
         #grantBtn:disabled {
-            background: #9ca3af;
+            background: #374151;
             cursor: not-allowed;
         }
 
+        /* --- Warning Banner (FMoKy) radius:10, padding:[12,14], gap:10 --- */
         .warning-banner {
             background: #fffbeb;
             border: 1px solid #fde68a;
@@ -164,10 +181,12 @@
             align-items: flex-start;
             gap: 10px;
             text-align: left;
+            width: 100%;
         }
 
-        .warning-banner i {
+        .warning-banner svg {
             color: #d97706;
+            flex-shrink: 0;
             margin-top: 2px;
         }
 
@@ -177,15 +196,22 @@
             color: #92400e;
         }
 
+        /* --- Footer Note (hzOYi) --- */
         .footer-note {
             font-size: 11px;
             color: #9ca3af;
+            text-align: center;
+        }
+
+        /* --- Status message (dynamic) --- */
+        #status:empty {
+            display: none;
         }
 
         #status {
             font-size: 14px;
             font-weight: 500;
-            min-height: 20px;
+            text-align: center;
         }
 
         .success { color: #10b981; }
@@ -195,69 +221,71 @@
 
 <body>
     <div class="card">
+        <!-- 1. Logo Row -->
         <header class="brand-header">
-            <div class="logo">
-                <div class="logo-dot"></div>
-            </div>
+            <img src="../icons/icon48.png" alt="Cognito Call Logo" class="logo-img">
             <div class="brand-text">
                 <h2>Cognito Call</h2>
                 <p>Microphone Permission</p>
             </div>
         </header>
 
-        <main style="display: flex; flex-direction: column; gap: 24px;">
-            <div class="status-icon-container">
-                <i data-lucide="mic" size="36"></i>
-            </div>
+        <!-- 2. Divider -->
+        <div class="divider"></div>
 
-            <div style="display: flex; flex-direction: column; gap: 12px;">
-                <h1>Microphone Access Required</h1>
-                <p class="description">
-                    Cognito Call needs your microphone to record your side of the conversation. Without it, only the other participants' audio will be captured.
-                </p>
-            </div>
+        <!-- 3. Mic Icon Circle -->
+        <div class="status-icon-container">
+            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+        </div>
 
-            <div class="checklist">
-                <div class="check-item">
-                    <i data-lucide="circle-check" size="18"></i>
-                    <span>Audio stays 100% local — never uploaded</span>
-                </div>
-                <div class="check-item">
-                    <i data-lucide="circle-check" size="18"></i>
-                    <span>Only active during recording</span>
-                </div>
-                <div class="check-item">
-                    <i data-lucide="circle-check" size="18"></i>
-                    <span>You can revoke access anytime in Chrome settings</span>
-                </div>
-            </div>
+        <!-- 4. Heading -->
+        <h1>Microphone Access Required</h1>
 
-            <div style="display: flex; flex-direction: column; gap: 16px;">
-                <button id="grantBtn">
-                    <i data-lucide="shield-check" size="18"></i>
-                    <span id="btnLabel">Grant Microphone Access</span>
-                </button>
-                <div id="status"></div>
-            </div>
+        <!-- 5. Description -->
+        <p class="description">
+            Cognito Call needs your microphone to record your side of the conversation. Without it, only the other participants' audio will be captured.
+        </p>
 
-            <div class="warning-banner">
-                <i data-lucide="triangle-alert" size="18"></i>
-                <p class="warning-text">
-                    When Chrome asks, choose <strong>"Allow"</strong> — not "Only this time". Temporary permissions don't work for background recording.
-                </p>
+        <!-- 6. Checklist -->
+        <div class="checklist">
+            <div class="check-item">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+                <span>Audio stays 100% local — never uploaded</span>
             </div>
-        </main>
+            <div class="check-item">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+                <span>Only active during recording</span>
+            </div>
+            <div class="check-item">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+                <span>You can revoke access anytime in Chrome settings</span>
+            </div>
+        </div>
 
-        <footer class="footer-note">
+        <!-- 7. Grant Button -->
+        <button id="grantBtn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+            <span id="btnLabel">Grant Microphone Access</span>
+        </button>
+
+        <!-- 8. Warning Banner -->
+        <div class="warning-banner">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+            <div class="warning-text">
+                When Chrome asks, choose "Allow", not "Only this time". Temporary permissions don't work for background recording.
+            </div>
+        </div>
+
+        <!-- 9. Footer Note -->
+        <div class="footer-note">
             This page will close automatically after access is granted.
-        </footer>
+        </div>
+
+        <!-- Status (hidden when empty) -->
+        <div id="status"></div>
     </div>
 
     <script src="mic.js"></script>
-    <script>
-        // Initialize Lucide icons
-        lucide.createIcons();
-    </script>
 </body>
 
 </html>
