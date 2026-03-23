@@ -1,7 +1,9 @@
 cognito-call/
 ├── README.md                          # Main project README
-├── CHANGELOG.md                       # Project changelog
-├── file-structure.md                  # AI reference (update this file)
+├── CHANGELOG.md                       # Project history
+├── PRIVACY_POLICY.md                  # 100% Local privacy promise
+├── dist/                              # ZIP release archives (gitignored)
+├── file-structure.md                  # AI/Developer project reference
 ├── VERSION_LOG.md                     # High-level release tracking (SemVer)
 ├── design/
 │   ├── extension-ui.pen               # UI/UX designs (Pencil)

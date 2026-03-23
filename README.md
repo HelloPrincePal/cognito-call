@@ -5,74 +5,66 @@
 
 No cloud. No bots joining calls. No data leaks.
 
-<!-- [![Extension Status](https://img.shields.io/badge/Extension-🔄%20Dev-blue)](chrome://extensions/) -->
+## 📦 Cognito Call Extension
+The core recorder is a lightweight Chrome extension that works 100% offline.
 
-## 🎯 Current Status: Phase 1 - Tab Recorder
+### 📥 Download Latest (v0.2.3)
+You can download the extension as a ZIP file directly from our GitHub Releases:
+*   **Download:** [cognito-call-v0.2.3.zip](https://github.com/HelloPrincePal/cognito-call/releases/latest)
+*   **Next Step:** Follow the [Installation Guide](#-installation-guide) below.
 
-✅ Chrome extension records any meeting tab locally
-✅ Captures tab audio + microphone (both sides of the call)
-✅ Optimized file size: VP9 codec, ~8-10 MB per minute
-✅ Human-readable filenames: `CognitoCall_2026-03-15_15-30-25.webm`
-✅ Saves `.webm` to `~/Downloads/CognitoCall/`
-✅ Works: Google Meet, Zoom Web, Teams Web, Webex
+### ✨ Core Extension Features
+*   ✅ **Tab + Mic Capture:** Records any meeting tab locally (Google Meet, Zoom, Teams, Webex).
+*   ✅ **Both Sides of the Call:** Captures both your microphone and the meeting audio.
+*   ✅ **Optimized File Size:** Uses VP9 codec, approximately ~8-10 MB per minute.
+*   ✅ **Human-Readable Filenames:** Saves as `CognitoCall_2026-03-15_15-30-25.webm`.
+*   ✅ **Save Location:** Automatically saves to your `~/Downloads/` folder.
 
-**Try it now:**
-```bash
-git clone https://github.com/helloprincepal/cognito-call.git
-cd cognito-call
-```
-Then navigate to `chrome://extensions/` → **Load unpacked** → select `packages/extension/`
+---
 
 ## 🛠 Tech Stack
-
-- **Icons:** [Lucide Icons](https://lucide.dev/) (Used in both design and code).
+- **Icons:** [Lucide Icons](https://lucide.dev/)
 - **Core:** Manifest V3, Web Audio API, Offscreen Documents.
 - **Design:** Inter Typography, Local-first UX.
 
 ## 🛤️ Roadmap
-
-
 | Phase | Status | What |
 | :--- | :--- | :--- |
 | 🟢 1 | 🔄 Live | Chrome extension → local `.webm` |
-| 🟡 2 | Next | Native Mac app + Chrome dashboard |
-| 🔴 3 | Soon | Whisper + Ollama local AI |
+| 🟡 2 | Next | Chrome Dashboard (Browse & Play recordings) |
+| 🔴 3 | Soon | Local AI (Whisper + Ollama) for summaries |
 
-## 🚀 Quick Start
+---
 
-### 1. Install
-```bash
-git clone https://github.com/helloprincepal/cognito-call.git
-cd cognito-call
-```
+## 📖 Installation Guide
 
-### 2. Load extension
-1. Open Chrome and navigate to `chrome://extensions/`
-2. Enable **Developer mode** in the top right corner.
-3. Click **Load unpacked** and select the `packages/extension/` directory.
+### For Users (Download ZIP)
+1.  **Download** the [latest ZIP file](https://github.com/HelloPrincePal/cognito-call/releases/latest).
+2.  **Extract** the ZIP folder to a safe place on your computer.
+3.  Open Chrome and navigate to `chrome://extensions/`.
+4.  Enable **Developer mode** (toggle in the top right corner).
+5.  Click **Load unpacked** and select the folder you just extracted.
 
-### 3. Test
-1. Open Google Meet, Zoom Web, or Teams Web.
-2. Click the Cognito Call extension icon in your browser toolbar.
-3. Click **Record**.
-4. Click **Stop** when finished; your video will be saved to `~/Downloads/CognitoCall/`.
+### For Developers (Git Clone)
+1.  Clone the repo:
+    ```bash
+    git clone https://github.com/HelloPrincePal/cognito-call.git
+    cd cognito-call
+    ```
+2.  Open Chrome and navigate to `chrome://extensions/`.
+3.  Enable **Developer mode**.
+4.  Click **Load unpacked** and select the `packages/extension/` directory.
 
-## 🤝 Contributing
-1. Fork the repo.
-2. Load `packages/extension/` in Chrome.
-3. Test recording functionality.
-4. Submit a PR.
-
-## 📱 Install Guide
-For complete installation instructions, check out our [Install Guide](docs/INSTALL-EXTENSION.md).
+---
 
 ## 🛡️ Privacy First
 - 🔒 **100% local processing**
-- 🚫 **No analytics**
-- 🚫 **No external APIs**
-- 🚫 **No phoning home**
+- 🚫 **No analytics or tracking**
+- 🚫 **No external APIs or data transmission**
+
+See our complete [Privacy Policy](PRIVACY_POLICY.md) for more details.
 
 ---
 
 Built with ❤️ by Prince Pal  
-📫 Contact: [HelloPrincePal@gmail.com](mailto:HelloPrincePal@gmail.com)# test
+📫 Contact: [HelloPrincePal@gmail.com](mailto:HelloPrincePal@gmail.com)

@@ -18,7 +18,9 @@ playwright-report/
 test-results/
 test-artifacts/
 
-# 🛠️ Extension Builds
+# 🛠️ Builds & Releases
+dist/
+*.zip
 packages/extension/*.crx
 packages/extension/*.zip
 
