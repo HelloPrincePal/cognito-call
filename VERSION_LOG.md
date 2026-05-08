@@ -15,6 +15,7 @@ We follow the **X.Y.Z** semantic versioning format:
 
 | Version | Date | Summary | Key Impact |
 | :--- | :--- | :--- | :--- |
+| **v0.3.0** | 2026-05-09 | **Session Packager Architecture** | Triple file export & exact alignment |
 | **v0.2.4** | 2026-03-23 | **Meticulous Design Parity** | 1:1 parity & Boss Design System |
 | **v0.2.3** | 2026-03-23 | **Icon Reliability & Layout Fixes** | Pixel-perfect popup & CSP-safe icons |
 | **v0.2.2** | 2026-03-19 | **Professional UI Implementation** | High-fidelity UI & Lucide Transition |
@@ -22,6 +23,17 @@ We follow the **X.Y.Z** semantic versioning format:
 | **v0.2.0** | 2026-03-15 | **Architecture & Audio Overhaul** | Complete re-architecture & Mic mixing |
 
 | **v0.1.0** | 2026-03-15 | **Initial Prototype** | Basic tab recording proof-of-concept |
+
+---
+
+## [v0.3.0] — 2026-05-09
+**Git Push Action:** "feat: session packager architecture and isolated audio streams"
+
+### 🚀 Implementation
+- **Session Workspace:** Replaced single file saving with a session-based directory generator (`CognitoCall/YYYY-MM-DD_HH-MM-SS/`).
+- **Triple File Export:** Upgraded `recorder.js` to create up to three distinct `MediaRecorder` instances running synchronously (`video.webm`, `tab.opus`, `mic.opus`).
+- **Exact Alignment:** Implemented synchronous `.start()` initialization logic across all active recorders to prevent timeline drift for AI transcription.
+- **Local Audio Routing:** Routed the tab's audio stream back to the system speakers via an invisible `Audio` element in the offscreen document, allowing the user to hear the tab while recording.
 
 ---
 

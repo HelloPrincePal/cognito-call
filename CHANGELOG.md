@@ -2,6 +2,24 @@
 
 ---
 
+## [2026-05-09 01:25 IST]
+
+### 💡 Summary
+Upgraded extension to a "Session Packager" architecture with triple-file export and unmuted local tab playback.
+
+### 🚀 Why
+- **Workspace Generation:** Instead of a single file, the extension now bundles sessions into dedicated folders (`YYYY-MM-DD_HH-MM-SS/`).
+- **Triple-File Audio Isolation:** To maximize AI transcription capabilities, we now extract and simultaneously save isolated audio files (`tab.opus` and `mic.opus`) alongside the main mixed `video.webm` file. 
+- **Exact Alignment:** All three Recorders are instantiated and `start()` triggered within a single synchronous block, guaranteeing perfect timeline alignment to avoid drift.
+- **Muted Tab Fix:** When capturing tab audio, Chrome inherently mutes local playback. Fixed by routing the `tabAudioStream` directly to the system speakers using an offscreen `<audio>` object so users can hear the meeting normally. Added `AUDIO_PLAYBACK` offscreen permission.
+
+### 📄 Changed Files
+- `packages/extension/offscreen/recorder.js`
+- `packages/extension/background/service-worker.js`
+- `packages/extension/manifest.json`
+
+---
+
 ## [2026-03-23 01:15 IST]
 
 ### 💡 Summary

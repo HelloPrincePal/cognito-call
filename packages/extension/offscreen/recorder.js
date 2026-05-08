@@ -1,9 +1,16 @@
-let mediaRecorder = null;
-let recordedChunks = [];
+let videoRecorder = null;
+let tabAudioRecorder = null;
+let micAudioRecorder = null;
+
+let videoChunks = [];
+let tabAudioChunks = [];
+let micAudioChunks = [];
+
 let activeStream = null;
 let micStream = null;
 let audioContext = null;
-let recordingFilename = null;
+let workspacePrefix = null;
+let tabAudioOutput = null;
 
 // ─── Message Listener ───
 // Only handle messages targeted at 'offscreen-doc' (from service worker)
@@ -19,14 +26,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 });
 
-// ─── Filename Helper ───
-// Generates: CognitoCall_2026-03-15_15-30-25.webm
-function generateFilename() {
+// ─── Workspace Prefix Helper ───
+// Generates: CognitoCall/2026-03-15_15-30-25/
+function generateWorkspacePrefix() {
     const now = new Date();
     const pad = (n) => n.toString().padStart(2, '0');
     const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
     const time = `${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
-    return `CognitoCall/CognitoCall_${date}_${time}.webm`;
+    return `CognitoCall/${date}_${time}/`;
 }
 
 async function startRecording(streamId) {
@@ -68,25 +75,35 @@ async function startRecording(streamId) {
             micStream = null;
         }
 
-        // ── 3. Mix audio streams using Web Audio API ──
+        // ── 3. Extract independent audio streams ──
+        let tabAudioStream = null;
+        if (tabStream.getAudioTracks().length > 0) {
+            tabAudioStream = new MediaStream(tabStream.getAudioTracks());
+            
+            // Unmute the tab to the user: route tab audio to the system speakers
+            tabAudioOutput = new Audio();
+            tabAudioOutput.srcObject = tabAudioStream;
+            tabAudioOutput.play().catch(e => console.warn('[Offscreen] Could not play tab audio:', e));
+        }
+
+        let micAudioStream = null;
+        if (micStream && micStream.getAudioTracks().length > 0) {
+            micAudioStream = new MediaStream(micStream.getAudioTracks());
+        }
+
+        // ── 4. Mix audio streams for the video file ──
         let recordingStream;
 
         if (micStream && tabStream.getAudioTracks().length > 0) {
-            // Mix tab audio + microphone audio
             audioContext = new AudioContext();
             const dest = audioContext.createMediaStreamDestination();
 
-            // Tab audio source
-            const tabAudioSource = audioContext.createMediaStreamSource(
-                new MediaStream(tabStream.getAudioTracks())
-            );
+            const tabAudioSource = audioContext.createMediaStreamSource(tabAudioStream);
             tabAudioSource.connect(dest);
 
-            // Microphone audio source
-            const micSource = audioContext.createMediaStreamSource(micStream);
+            const micSource = audioContext.createMediaStreamSource(micAudioStream);
             micSource.connect(dest);
 
-            // Combined stream = tab video + mixed audio
             recordingStream = new MediaStream([
                 ...tabStream.getVideoTracks(),
                 ...dest.stream.getAudioTracks()
@@ -94,46 +111,73 @@ async function startRecording(streamId) {
 
             console.log('[Offscreen] Audio mixing: tab + microphone');
         } else {
-            // Fallback: just use the tab stream as-is
             recordingStream = tabStream;
             console.log('[Offscreen] Audio: tab only (no mic)');
         }
 
-        // ── 4. Create MediaRecorder with optimized settings ──
-        recordedChunks = [];
-        recordingFilename = generateFilename();
+        // ── 5. Create Recorders ──
+        videoChunks = [];
+        tabAudioChunks = [];
+        micAudioChunks = [];
+        workspacePrefix = generateWorkspacePrefix();
 
-        // VP9 + Opus gives much better compression than VP8
-        // Target: ~8-10 MB per minute instead of ~20 MB per minute
         const mimeOptions = [
             'video/webm;codecs=vp9,opus',
             'video/webm;codecs=vp8,opus',
             'video/webm'
         ];
-
         let selectedMime = mimeOptions.find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
 
-        mediaRecorder = new MediaRecorder(recordingStream, {
+        videoRecorder = new MediaRecorder(recordingStream, {
             mimeType: selectedMime,
-            videoBitsPerSecond: 1_000_000,  // 1 Mbps video (was unset = ~2.5 Mbps)
-            audioBitsPerSecond: 128_000     // 128 Kbps audio
+            videoBitsPerSecond: 1_000_000,
+            audioBitsPerSecond: 128_000
         });
-
-        console.log('[Offscreen] MediaRecorder codec:', selectedMime);
-        console.log('[Offscreen] Bitrate: 1 Mbps video + 128 Kbps audio');
-
-        mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) recordedChunks.push(event.data);
+        
+        videoRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) videoChunks.push(event.data);
         };
 
-        mediaRecorder.onstop = () => {
-            saveRecording();
+        if (tabAudioStream) {
+            tabAudioRecorder = new MediaRecorder(tabAudioStream, {
+                mimeType: 'audio/webm;codecs=opus',
+                audioBitsPerSecond: 128_000
+            });
+            tabAudioRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) tabAudioChunks.push(event.data);
+            };
+        }
+
+        if (micAudioStream) {
+            micAudioRecorder = new MediaRecorder(micAudioStream, {
+                mimeType: 'audio/webm;codecs=opus',
+                audioBitsPerSecond: 128_000
+            });
+            micAudioRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) micAudioChunks.push(event.data);
+            };
+        }
+
+        let activeRecordersCount = 1 + (tabAudioRecorder ? 1 : 0) + (micAudioRecorder ? 1 : 0);
+        let stoppedRecordersCount = 0;
+        const checkDone = () => {
+            stoppedRecordersCount++;
+            if (stoppedRecordersCount === activeRecordersCount) {
+                saveRecordings();
+            }
         };
 
-        mediaRecorder.start(1000); // Collect data every second
+        videoRecorder.onstop = checkDone;
+        if (tabAudioRecorder) tabAudioRecorder.onstop = checkDone;
+        if (micAudioRecorder) micAudioRecorder.onstop = checkDone;
 
-        console.log('[Offscreen] Recording started:', recordingFilename);
-        return { success: true, recordingId: recordingFilename };
+        // ── 6. Synchronous Start ──
+        videoRecorder.start(1000);
+        if (tabAudioRecorder) tabAudioRecorder.start(1000);
+        if (micAudioRecorder) micAudioRecorder.start(1000);
+
+        console.log('[Offscreen] Recording started in workspace:', workspacePrefix);
+        return { success: true, recordingId: workspacePrefix };
     } catch (error) {
         console.error('[Offscreen] startRecording error:', error);
         return { success: false, error: error.message };
@@ -141,9 +185,16 @@ async function startRecording(streamId) {
 }
 
 function cleanupStreams() {
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-        mediaRecorder.stop();
+    if (videoRecorder && videoRecorder.state === 'recording') videoRecorder.stop();
+    if (tabAudioRecorder && tabAudioRecorder.state === 'recording') tabAudioRecorder.stop();
+    if (micAudioRecorder && micAudioRecorder.state === 'recording') micAudioRecorder.stop();
+
+    if (tabAudioOutput) {
+        tabAudioOutput.pause();
+        tabAudioOutput.srcObject = null;
+        tabAudioOutput = null;
     }
+
     if (activeStream) {
         activeStream.getTracks().forEach(track => track.stop());
         activeStream = null;
@@ -160,9 +211,16 @@ function cleanupStreams() {
 
 async function stopRecording() {
     try {
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
-            mediaRecorder.stop();
+        if (videoRecorder && videoRecorder.state === 'recording') videoRecorder.stop();
+        if (tabAudioRecorder && tabAudioRecorder.state === 'recording') tabAudioRecorder.stop();
+        if (micAudioRecorder && micAudioRecorder.state === 'recording') micAudioRecorder.stop();
+
+        if (tabAudioOutput) {
+            tabAudioOutput.pause();
+            tabAudioOutput.srcObject = null;
+            tabAudioOutput = null;
         }
+
         // Stop all tracks
         if (activeStream) {
             activeStream.getTracks().forEach(track => track.stop());
@@ -184,40 +242,59 @@ async function stopRecording() {
     }
 }
 
-async function saveRecording() {
-    if (recordedChunks.length === 0) {
+async function saveRecordings() {
+    let totalSizeMB = 0;
+    const prefix = workspacePrefix || "CognitoCall/";
+    let filesProcessed = 0;
+    let filesToProcess = 0;
+
+    const processFile = (chunks, mimeType, filename) => {
+        if (chunks.length === 0) return;
+        filesToProcess++;
+        
+        const blob = new Blob(chunks, { type: mimeType });
+        const sizeMB = (blob.size / (1024 * 1024)).toFixed(2);
+        totalSizeMB += parseFloat(sizeMB);
+        
+        const fullFilename = `${prefix}${filename}`;
+        console.log(`[Offscreen] Saving ${fullFilename} (${sizeMB} MB)`);
+        
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            chrome.runtime.sendMessage({
+                target: 'service-worker',
+                action: 'downloadRecording',
+                dataUrl: reader.result,
+                filename: fullFilename
+            });
+            
+            filesProcessed++;
+            checkAllProcessed();
+        };
+        reader.readAsDataURL(blob);
+    };
+
+    const checkAllProcessed = () => {
+        if (filesProcessed === filesToProcess && filesToProcess > 0) {
+            chrome.runtime.sendMessage({
+                target: 'service-worker',
+                action: 'recordingSaved',
+                filename: prefix,
+                sizeMB: totalSizeMB.toFixed(2)
+            });
+        }
+    };
+
+    processFile(videoChunks, 'video/webm', 'video.webm');
+    processFile(tabAudioChunks, 'audio/webm', 'tab.opus');
+    processFile(micAudioChunks, 'audio/webm', 'mic.opus');
+
+    if (filesToProcess === 0) {
         console.warn('[Offscreen] No recorded chunks to save.');
-        return;
     }
 
-    const blob = new Blob(recordedChunks, { type: 'video/webm' });
-    const sizeInMB = (blob.size / (1024 * 1024)).toFixed(2);
-    const filename = recordingFilename || generateFilename();
-
-    console.log(`[Offscreen] Saving recording: ${filename} (${sizeInMB} MB)`);
-
-    // Convert blob to data URL, then send to service worker for download
-    // (offscreen documents do NOT have access to chrome.downloads)
-    const reader = new FileReader();
-    reader.onloadend = () => {
-        // Ask the service worker to trigger the download
-        chrome.runtime.sendMessage({
-            target: 'service-worker',
-            action: 'downloadRecording',
-            dataUrl: reader.result,
-            filename: filename
-        });
-
-        // Also notify that recording was saved
-        chrome.runtime.sendMessage({
-            target: 'service-worker',
-            action: 'recordingSaved',
-            filename: filename,
-            sizeMB: sizeInMB
-        });
-    };
-    reader.readAsDataURL(blob);
-
     // Clean up
-    recordedChunks = [];
+    videoChunks = [];
+    tabAudioChunks = [];
+    micAudioChunks = [];
 }

@@ -68,8 +68,8 @@ async function startRecording(tabId, sendResponse) {
         if (!hasDocument) {
             await chrome.offscreen.createDocument({
                 url: 'offscreen/recorder.html',
-                reasons: ['USER_MEDIA'],
-                justification: 'Tab recording via MediaRecorder'
+                reasons: ['USER_MEDIA', 'AUDIO_PLAYBACK'],
+                justification: 'Tab recording and playback'
             });
             // Give the offscreen document time to load and register its listener
             await new Promise(resolve => setTimeout(resolve, 300));

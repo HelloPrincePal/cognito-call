@@ -1,5 +1,5 @@
 # 🚀 Cognito Call
-![Version 0.2.3](https://img.shields.io/badge/version-0.2.3-blue)
+![Version 0.3.0](https://img.shields.io/badge/version-0.3.0-blue)
 
 **Local-first meeting recorder.** Record Chrome tabs (Meet/Zoom/Teams) → save `.webm` locally → AI summaries (coming soon).
 
@@ -8,17 +8,18 @@ No cloud. No bots joining calls. No data leaks.
 ## 📦 Cognito Call Extension
 The core recorder is a lightweight Chrome extension that works 100% offline.
 
-### 📥 Download Latest (v0.2.3)
+### 📥 Download Latest (v0.3.0)
 You can download the extension as a ZIP file directly from our GitHub Releases:
-*   **Download:** [cognito-call-v0.2.3.zip](https://github.com/HelloPrincePal/cognito-call/releases/latest)
+*   **Download:** [cognito-call-v0.3.0.zip](https://github.com/HelloPrincePal/cognito-call/releases/latest)
 *   **Next Step:** Follow the [Installation Guide](#-installation-guide) below.
 
 ### ✨ Core Extension Features
 *   ✅ **Tab + Mic Capture:** Records any meeting tab locally (Google Meet, Zoom, Teams, Webex).
 *   ✅ **Both Sides of the Call:** Captures both your microphone and the meeting audio.
-*   ✅ **Optimized File Size:** Uses VP9 codec, approximately ~8-10 MB per minute.
-*   ✅ **Human-Readable Filenames:** Saves as `CognitoCall_2026-03-15_15-30-25.webm`.
-*   ✅ **Save Location:** Automatically saves to your `~/Downloads/` folder.
+*   ✅ **Session Packager:** Creates a dedicated timestamped workspace folder per recording (e.g., `2026-05-09_14-30-00/`).
+*   ✅ **Triple File Export:** Simultaneously saves a mixed `video.webm`, an isolated `tab.opus`, and an isolated `mic.opus` for AI transcription.
+*   ✅ **Optimized File Size:** Uses VP9 and Opus codecs to maintain high quality at just ~8-10 MB per minute.
+*   ✅ **Local Unmuting:** You can still hear the tab audio from your speakers while it records securely in the background.
 
 ---
 
