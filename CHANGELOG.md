@@ -2,6 +2,23 @@
 
 ---
 
+## [2026-05-18 19:30 IST]
+
+### 💡 Summary
+Initialized **Phase 2: Cognito Video Gallery**, a custom Tauri desktop application to browse and play local video recordings.
+
+### 🚀 Why
+- **Local Gallery:** A dedicated desktop interface to manage the sessions packaged by the Chrome extension.
+- **Tauri Integration:** Set up a lightweight Rust/Tauri backend with a React+Vite frontend in the `cognito-desktop/` directory.
+
+### 📄 Changed Files
+- `cognito-desktop/` (New directory)
+- `README.md`
+- `VERSION_LOG.md`
+- `CHANGELOG.md`
+
+---
+
 ## [2026-05-09 01:25 IST]
 
 ### 💡 Summary

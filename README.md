@@ -1,5 +1,5 @@
 # 🚀 Cognito Call
-![Version 0.3.0](https://img.shields.io/badge/version-0.3.0-blue)
+![Version 0.4.0](https://img.shields.io/badge/version-0.4.0-blue)
 
 **Local-first meeting recorder.** Record Chrome tabs (Meet/Zoom/Teams) → save `.webm` locally → AI summaries (coming soon).
 
@@ -8,9 +8,9 @@ No cloud. No bots joining calls. No data leaks.
 ## 📦 Cognito Call Extension
 The core recorder is a lightweight Chrome extension that works 100% offline.
 
-### 📥 Download Latest (v0.3.0)
+### 📥 Download Latest (v0.4.0)
 You can download the extension as a ZIP file directly from our GitHub Releases:
-*   **Download:** [cognito-call-v0.3.0.zip](https://github.com/HelloPrincePal/cognito-call/releases/latest)
+*   **Download:** [cognito-call-v0.4.0.zip](https://github.com/HelloPrincePal/cognito-call/releases/latest)
 *   **Next Step:** Follow the [Installation Guide](#-installation-guide) below.
 
 ### ✨ Core Extension Features
@@ -32,7 +32,7 @@ You can download the extension as a ZIP file directly from our GitHub Releases:
 | Phase | Status | What |
 | :--- | :--- | :--- |
 | 🟢 1 | 🔄 Live | Chrome extension → local `.webm` |
-| 🟡 2 | Next | Chrome Dashboard (Browse & Play recordings) |
+| 🟢 2 | 🔄 Dev | Chrome Dashboard / Tauri Desktop (Browse & Play recordings) |
 | 🔴 3 | Soon | Local AI (Whisper + Ollama) for summaries |
 
 ---
@@ -55,6 +55,22 @@ You can download the extension as a ZIP file directly from our GitHub Releases:
 2.  Open Chrome and navigate to `chrome://extensions/`.
 3.  Enable **Developer mode**.
 4.  Click **Load unpacked** and select the `packages/extension/` directory.
+
+### For Developers (Desktop App)
+To run the Phase 2 Tauri Desktop App (Video Gallery):
+1. Ensure you have Rust and Node.js installed.
+2. Navigate to the desktop app folder:
+    ```bash
+    cd cognito-desktop
+    ```
+3. Install dependencies:
+    ```bash
+    npm install
+    ```
+4. Start the Tauri development server:
+    ```bash
+    npm run tauri dev
+    ```
 
 ---
 

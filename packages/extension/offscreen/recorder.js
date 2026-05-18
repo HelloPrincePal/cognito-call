@@ -79,7 +79,7 @@ async function startRecording(streamId) {
         let tabAudioStream = null;
         if (tabStream.getAudioTracks().length > 0) {
             tabAudioStream = new MediaStream(tabStream.getAudioTracks());
-            
+
             // Unmute the tab to the user: route tab audio to the system speakers
             tabAudioOutput = new Audio();
             tabAudioOutput.srcObject = tabAudioStream;
@@ -133,7 +133,7 @@ async function startRecording(streamId) {
             videoBitsPerSecond: 1_000_000,
             audioBitsPerSecond: 128_000
         });
-        
+
         videoRecorder.ondataavailable = (event) => {
             if (event.data.size > 0) videoChunks.push(event.data);
         };
@@ -204,7 +204,7 @@ function cleanupStreams() {
         micStream = null;
     }
     if (audioContext) {
-        audioContext.close().catch(() => {});
+        audioContext.close().catch(() => { });
         audioContext = null;
     }
 }
@@ -231,7 +231,7 @@ async function stopRecording() {
             micStream = null;
         }
         if (audioContext) {
-            audioContext.close().catch(() => {});
+            audioContext.close().catch(() => { });
             audioContext = null;
         }
         console.log('[Offscreen] Recording stopped');
@@ -251,14 +251,14 @@ async function saveRecordings() {
     const processFile = (chunks, mimeType, filename) => {
         if (chunks.length === 0) return;
         filesToProcess++;
-        
+
         const blob = new Blob(chunks, { type: mimeType });
         const sizeMB = (blob.size / (1024 * 1024)).toFixed(2);
         totalSizeMB += parseFloat(sizeMB);
-        
+
         const fullFilename = `${prefix}${filename}`;
         console.log(`[Offscreen] Saving ${fullFilename} (${sizeMB} MB)`);
-        
+
         const reader = new FileReader();
         reader.onloadend = () => {
             chrome.runtime.sendMessage({
@@ -267,7 +267,7 @@ async function saveRecordings() {
                 dataUrl: reader.result,
                 filename: fullFilename
             });
-            
+
             filesProcessed++;
             checkAllProcessed();
         };

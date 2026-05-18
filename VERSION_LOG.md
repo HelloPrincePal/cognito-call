@@ -15,6 +15,7 @@ We follow the **X.Y.Z** semantic versioning format:
 
 | Version | Date | Summary | Key Impact |
 | :--- | :--- | :--- | :--- |
+| **v0.4.0** | 2026-05-18 | **Cognito Video Gallery (Tauri)** | Initialized Phase 2 desktop app |
 | **v0.3.0** | 2026-05-09 | **Session Packager Architecture** | Triple file export & exact alignment |
 | **v0.2.4** | 2026-03-23 | **Meticulous Design Parity** | 1:1 parity & Boss Design System |
 | **v0.2.3** | 2026-03-23 | **Icon Reliability & Layout Fixes** | Pixel-perfect popup & CSP-safe icons |
@@ -23,6 +24,16 @@ We follow the **X.Y.Z** semantic versioning format:
 | **v0.2.0** | 2026-03-15 | **Architecture & Audio Overhaul** | Complete re-architecture & Mic mixing |
 
 | **v0.1.0** | 2026-03-15 | **Initial Prototype** | Basic tab recording proof-of-concept |
+
+---
+
+## [v0.4.0] — 2026-05-18
+**Git Push Action:** "feat: initialize cognito video gallery tauri application"
+
+### 🚀 Implementation
+- **Tauri App:** Initialized the `cognito-desktop` directory with a Vite + React + Tauri setup.
+- **Phase 2 Kickoff:** Began development on the local-first dashboard to browse, play, and manage offline `.webm` files recorded by the extension.
+- **Documentation:** Updated the README to include development start commands for the new desktop app.
 
 ---
 
