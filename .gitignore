@@ -47,3 +47,14 @@ Icon?
 Thumbs.db
 ehthumbs.db
 favicon.ico
+
+# 🐍 Python / Virtual Environment
+venv/
+cognito-desktop/venv/
+.venv/
+__pycache__/
+*.pyc
+
+# 🧠 Pretrained Models
+cognito-desktop/src-tauri/pretrained_models/
+

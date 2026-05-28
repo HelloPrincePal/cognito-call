@@ -1,5 +1,5 @@
 # 🚀 Cognito Call
-![Version 0.4.0](https://img.shields.io/badge/version-0.4.0-blue)
+![Version 0.5.0](https://img.shields.io/badge/version-0.5.0-blue)
 
 **Local-first meeting recorder.** Record Chrome tabs (Meet/Zoom/Teams) → save `.webm` locally → AI summaries (coming soon).
 
@@ -8,9 +8,9 @@ No cloud. No bots joining calls. No data leaks.
 ## 📦 Cognito Call Extension
 The core recorder is a lightweight Chrome extension that works 100% offline.
 
-### 📥 Download Latest (v0.4.0)
+### 📥 Download Latest (v0.5.0)
 You can download the extension as a ZIP file directly from our GitHub Releases:
-*   **Download:** [cognito-call-v0.4.0.zip](https://github.com/HelloPrincePal/cognito-call/releases/latest)
+*   **Download:** [cognito-call-v0.5.0.zip](https://github.com/HelloPrincePal/cognito-call/releases/latest)
 *   **Next Step:** Follow the [Installation Guide](#-installation-guide) below.
 
 ### ✨ Core Extension Features
@@ -24,16 +24,19 @@ You can download the extension as a ZIP file directly from our GitHub Releases:
 ---
 
 ## 🛠 Tech Stack
-- **Icons:** [Lucide Icons](https://lucide.dev/)
-- **Core:** Manifest V3, Web Audio API, Offscreen Documents.
-- **Design:** Inter Typography, Local-first UX.
+- **Extension:** Manifest V3, Web Audio API, Offscreen Documents.
+- **Desktop App:** Tauri v2, Rust, React, Tailwind CSS.
+- **AI Pipeline:** WhisperX, simple-diarizer (Spectral Clustering), PyTorch.
+
+> 📚 **Deep Dive:** See [ARCHITECTURE.md](ARCHITECTURE.md) for a complete technical breakdown of how the isolated audio streams are processed locally by the AI pipeline.
 
 ## 🛤️ Roadmap
 | Phase | Status | What |
 | :--- | :--- | :--- |
 | 🟢 1 | 🔄 Live | Chrome extension → local `.webm` |
-| 🟢 2 | 🔄 Dev | Chrome Dashboard / Tauri Desktop (Browse & Play recordings) |
-| 🔴 3 | Soon | Local AI (Whisper + Ollama) for summaries |
+| 🟢 2 | 🔄 Live | Chrome Dashboard / Tauri Desktop (Browse & Play recordings) |
+| 🟢 3 | 🔄 Live | 100% Local AI (WhisperX + Clustering) for Transcription & Diarization |
+| 🔴 4 | Soon | Ollama Local LLM Integration for Meeting Summaries |
 
 ---
 

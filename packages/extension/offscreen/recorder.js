@@ -259,19 +259,17 @@ async function saveRecordings() {
         const fullFilename = `${prefix}${filename}`;
         console.log(`[Offscreen] Saving ${fullFilename} (${sizeMB} MB)`);
 
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            chrome.runtime.sendMessage({
-                target: 'service-worker',
-                action: 'downloadRecording',
-                dataUrl: reader.result,
-                filename: fullFilename
-            });
+        const blobUrl = URL.createObjectURL(blob);
+        
+        chrome.runtime.sendMessage({
+            target: 'service-worker',
+            action: 'downloadRecording',
+            dataUrl: blobUrl,
+            filename: fullFilename
+        });
 
-            filesProcessed++;
-            checkAllProcessed();
-        };
-        reader.readAsDataURL(blob);
+        filesProcessed++;
+        checkAllProcessed();
     };
 
     const checkAllProcessed = () => {

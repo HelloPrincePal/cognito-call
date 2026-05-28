@@ -2,6 +2,27 @@
 
 ---
 
+## [2026-05-19 10:45 IST]
+
+### 💡 Summary
+Achieved **Phase 3: 100% Local AI Transcription & Diarization** by building an offline Python pipeline that accurately processes the Chrome extension's isolated audio streams.
+
+### 🚀 Why
+- **Zero Cloud, Zero Tokens:** Eliminated dependency on gated HuggingFace models (like Pyannote's diarization pipeline) by switching to the open `simple-diarizer` (Spectral Clustering algorithm).
+- **Subprocess Orchestration:** The Tauri (Rust) backend securely triggers an isolated Python virtual environment (`venv`) to prevent global dependency conflicts.
+- **Karaoke Sync:** `Player.tsx` in the frontend now parses the generated `transcript.json` to highlight exact words during video playback and allows click-to-jump navigation.
+- **Format Support:** Added dual-extension support (`.webm` and `.opus`) to the transcription sidecar to handle Chrome's native MediaRecorder containers.
+
+### 📄 Changed Files
+- `cognito-desktop/python/transcriber.py`
+- `cognito-desktop/python/requirements.txt`
+- `cognito-desktop/src-tauri/src/lib.rs`
+- `cognito-desktop/src/components/Player.tsx`
+- `cognito-desktop/src/App.tsx`
+- `ARCHITECTURE.md` (New)
+
+---
+
 ## [2026-05-18 19:30 IST]
 
 ### 💡 Summary

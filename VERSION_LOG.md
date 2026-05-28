@@ -15,6 +15,7 @@ We follow the **X.Y.Z** semantic versioning format:
 
 | Version | Date | Summary | Key Impact |
 | :--- | :--- | :--- | :--- |
+| **v0.5.0** | 2026-05-19 | **Local AI Transcription Pipeline** | 100% offline WhisperX + Clustering pipeline |
 | **v0.4.0** | 2026-05-18 | **Cognito Video Gallery (Tauri)** | Initialized Phase 2 desktop app |
 | **v0.3.0** | 2026-05-09 | **Session Packager Architecture** | Triple file export & exact alignment |
 | **v0.2.4** | 2026-03-23 | **Meticulous Design Parity** | 1:1 parity & Boss Design System |
@@ -24,6 +25,18 @@ We follow the **X.Y.Z** semantic versioning format:
 | **v0.2.0** | 2026-03-15 | **Architecture & Audio Overhaul** | Complete re-architecture & Mic mixing |
 
 | **v0.1.0** | 2026-03-15 | **Initial Prototype** | Basic tab recording proof-of-concept |
+
+---
+
+## [v0.5.0] — 2026-05-19
+**Git Push Action:** "feat: integrate 100% local AI transcription and diarization pipeline"
+
+### 🚀 Implementation
+- **Local AI Pipeline:** Built a robust Python sidecar orchestrating WhisperX for word-level transcription and `simple-diarizer` (Spectral Clustering) for token-free speaker identification.
+- **Tauri Orchestration:** Configured the Rust backend to dynamically resolve absolute paths to the isolated Python `venv` and stream subprocess `stderr` back to the UI.
+- **Custom Stitching Logic:** Designed an algorithm that merges the isolated `mic.webm` and `tab.webm` streams, synchronizing exact timestamped words to their respective diarized speakers.
+- **Karaoke Player UI:** Upgraded `Player.tsx` in the React frontend to natively parse the resulting `transcript.json` and sync the highlighted words with the HTML5 video playback.
+- **Dependency Hardening:** Integrated a monkeypatch to bypass PyTorch 2.6+ `weights_only` security serialization errors when loading legacy pyannote models.
 
 ---
 
