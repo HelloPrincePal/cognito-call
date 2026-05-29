@@ -2,3 +2,4 @@ whisperx
 simple-diarizer
 torch
 torchaudio
+psutil
