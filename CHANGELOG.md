@@ -2,6 +2,28 @@
 
 ---
 
+## [2026-05-30 02:00 IST]
+
+### 💡 Summary
+Refactored the Cognito Hub UI into a clean, light-mode dashboard with a vertical player-on-top layout, introduced dual JSON/TXT transcript exporters, and integrated a robust diagnostic black-box logging system to track performance and error states in the Python transcriber.
+
+### 🚀 Why
+- **Polished UX**: Simplified the UI to feature a professional dashboard (greeting + grid of clean white session cards on a `#F9FAFB` workspace) and vertical stacking for media detail views.
+- **Data Portability**: Enabled users to export transcripts as segment-level JSON (ideal for custom APIs/spreadsheets) or plain text (`.txt`) directly from the Transcript tab.
+- **Telemetry & Hardening**: The Python sidecar now tracks system resource footprints (CPU/RAM) via `psutil` and writes execution logs alongside stack trace fallbacks to a localized `diagnostic.log` file.
+
+### 📄 Changed Files
+- `cognito-desktop/src/App.tsx`
+- `cognito-desktop/src/components/Player.tsx`
+- `cognito-desktop/python/transcriber.py`
+- `cognito-desktop/python/requirements.txt`
+- `pyrightconfig.json` (New)
+- `VERSION_LOG.md`
+- `CHANGELOG.md`
+- `ARCHITECTURE.md`
+
+---
+
 ## [2026-05-19 10:45 IST]
 
 ### 💡 Summary

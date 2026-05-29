@@ -15,6 +15,7 @@ We follow the **X.Y.Z** semantic versioning format:
 
 | Version | Date | Summary | Key Impact |
 | :--- | :--- | :--- | :--- |
+| **v0.5.1** | 2026-05-30 | **Diagnostic Logging & Light Mode Refactor** | Stable Python logger (psutil) + premium light mode dashboard & segment exporters |
 | **v0.5.0** | 2026-05-19 | **Local AI Transcription Pipeline** | 100% offline WhisperX + Clustering pipeline |
 | **v0.4.0** | 2026-05-18 | **Cognito Video Gallery (Tauri)** | Initialized Phase 2 desktop app |
 | **v0.3.0** | 2026-05-09 | **Session Packager Architecture** | Triple file export & exact alignment |
@@ -25,6 +26,18 @@ We follow the **X.Y.Z** semantic versioning format:
 | **v0.2.0** | 2026-03-15 | **Architecture & Audio Overhaul** | Complete re-architecture & Mic mixing |
 
 | **v0.1.0** | 2026-03-15 | **Initial Prototype** | Basic tab recording proof-of-concept |
+
+---
+
+## [v0.5.1] — 2026-05-30
+**Git Push Action:** "feat: add black-box diagnostic logging, light mode dashboard UI, and transcript exports"
+
+### 🚀 Implementation
+- **Diagnostic Logging System:** Configured `transcriber.py` to write/append to a structured `diagnostic.log` file in the active workspace directory, recording file size metrics, step-by-step execution times (`time.perf_counter()`), and CPU/RAM hardware footprints (`psutil`).
+- **Resilient Fallback Parsing:** Wrapped critical pipeline boundaries in try-except constructs. If a diarizer asserts or fails (such as on silent or single-speaker audio), the traceback is logged to `diagnostic.log` while successfully committing the partial segments array to a valid `transcript.json` output.
+- **Light Mode UI & Sidebar:** Refactored the Tauri desktop client layout (`App.tsx`) to match a clean light-mode dashboard style, replacing statistics headers and search boxes with a welcoming greeting, responsive grid layout, and simplified navigation.
+- **Vertical Stack Detail View:** Positioned the video element at the top of the workspace detail panel while shifting the navigation tabs (`Transcript`, `Notes`, `Action Items`) to the bottom of the dashboard.
+- **Dual Exporters:** Implemented frontend segment-level JSON export and formatted plain text (.txt) script export with standard dialog downloads.
 
 ---
 

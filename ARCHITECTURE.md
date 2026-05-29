@@ -33,38 +33,43 @@ The Chrome extension acts as the primary recording mechanism. It is built using 
 ---
 
 ## 2. The Cognito Gallery (Desktop App)
-
-A native macOS application used to browse recordings and trigger the heavy AI processing.
-
-### Key Tools:
-- **Tauri v2** (Application Framework)
-- **Rust** (Backend logic and file system access)
-- **React + Vite + Tailwind CSS** (Frontend UI)
-
-### How it works:
-1. **Local Access:** The Rust backend scans the `~/Downloads/CognitoCall/` directory and exposes the sessions to the React frontend.
-2. **Video Streaming:** Tauri's `convertFileSrc` securely streams the local `.webm` files directly into the HTML5 `<video>` player.
-3. **Process Orchestration:** When the user clicks "Generate AI Transcript", the Rust backend spawns a child process (`std::process::Command`), directly invoking the isolated Python virtual environment (`venv`) to execute the transcription sidecar.
-4. **The Karaoke UI:** Once the Python script completes, React parses the outputted `transcript.json`. It maps the word-level timestamps to the video player's `currentTime`, highlighting the exact spoken word in real-time.
-
----
-
-## 3. The Local AI Pipeline (Python Sidecar)
-
-The "Brain" of the application. A completely offline, token-free Python pipeline that processes the isolated audio streams.
-
-### Key Tools:
-- **WhisperX** (Transcription & Word-level Alignment)
-- **simple-diarizer** (Spectral Clustering for Speaker Identification)
-- **FFmpeg / Torchaudio** (Audio Extraction)
-
-### How it works:
-1. **Transcription:** WhisperX transcribes both `mic.webm` and `tab.webm` separately, generating exact millisecond timestamps for every spoken word.
-2. **Token-Free Diarization:** Instead of relying on gated models like Pyannote (which require HuggingFace API tokens and Accept-Terms agreements), the pipeline uses `simple-diarizer`. It runs a Spectral Clustering mathematical algorithm exclusively on `tab.webm` to separate the remote voices into "Speaker 1", "Speaker 2", etc.
-3. **Custom Stitcher:** The script merges the locally transcribed microphone array ("Me") with the diarized remote array ("Speaker X"), sorts all the words chronologically, and compiles them into a unified `transcript.json`.
-4. **Security Patches:** The script contains monkeypatches for PyTorch 2.6+ `weights_only` serialization blocks to ensure older model checkpoints load flawlessly on modern systems without security exceptions.
-
----
-
-## The Workflow summary:
-`Chrome Extension (webm)` ➡️ `Downloads Folder` ➡️ `Tauri (Rust) triggers Python` ➡️ `WhisperX + Clustering (transcript.json)` ➡️ `React (Karaoke UI)`
+ 
+ A native macOS application used to browse recordings and trigger the heavy AI processing.
+ 
+ ### Key Tools:
+ - **Tauri v2** (Application Framework)
+ - **Rust** (Backend logic and file system access)
+ - **React + Vite + Tailwind CSS** (Frontend UI)
+ - **Lucide React** (UI Iconography)
+ 
+ ### How it works:
+ 1. **Local Access:** The Rust backend scans the `~/Downloads/CognitoCall/` directory and exposes the sessions to the React frontend.
+ 2. **Video Streaming:** Tauri's `convertFileSrc` securely streams the local `.webm` files directly into the HTML5 `<video>` player.
+ 3. **Process Orchestration:** When the user clicks "Generate AI Transcript", the Rust backend spawns a child process (`std::process::Command`), directly invoking the isolated Python virtual environment (`venv`) to execute the transcription sidecar.
+ 4. **The Vertical Stack Layout & Karaoke UI:** Once the Python script completes, React parses the outputted `transcript.json`. The player is pinned at the top while the tabs (`Transcript`, `Notes`, `Action Items`) sit at the bottom. It maps the word-level timestamps to the video player's `currentTime`, highlighting the exact spoken word in real-time with a custom purple theme.
+ 5. **Dual Exporters:** Users can export the transcript line-by-sentence via the UI. Standard HTML5 Blobs are created on-the-fly, allowing downloads of a clean, segment-level JSON file or a fully formatted `.txt` script.
+ 
+ ---
+ 
+ ## 3. The Local AI Pipeline (Python Sidecar)
+ 
+ The "Brain" of the application. A completely offline, token-free Python pipeline that processes the isolated audio streams.
+ 
+ ### Key Tools:
+ - **WhisperX** (Transcription & Word-level Alignment)
+ - **simple-diarizer** (Spectral Clustering for Speaker Identification)
+ - **FFmpeg / Torchaudio** (Audio Extraction)
+ - **psutil** (Hardware Telemetry Monitoring)
+ 
+ ### How it works:
+ 1. **Transcription:** WhisperX transcribes both `mic.webm` and `tab.webm` separately, generating exact millisecond timestamps for every spoken word.
+ 2. **Token-Free Diarization:** Instead of relying on gated models like Pyannote (which require HuggingFace API tokens and Accept-Terms agreements), the pipeline uses `simple-diarizer`. It runs a Spectral Clustering mathematical algorithm exclusively on `tab.webm` to separate the remote voices into "Speaker 1", "Speaker 2", etc.
+ 3. **Custom Stitcher:** The script merges the locally transcribed microphone array ("Me") with the diarized remote array ("Speaker X"), sorts all the words chronologically, and compiles them into a unified `transcript.json`.
+ 4. **Security Patches:** The script contains monkeypatches for PyTorch 2.6+ `weights_only` serialization blocks to ensure older model checkpoints load flawlessly on modern systems without security exceptions.
+ 5. **Black-Box Diagnostic Logger:** An integrated diagnostics module creates/appends to a `diagnostic.log` file inside the processed folder. It captures initial file metrics, execution timing metrics per phase (`time.perf_counter()`), and system-wide + process-specific hardware resources (CPU, RAM used/total) at baseline, peak, and post-cleanup.
+ 6. **Resilient Failure Boundaries:** Essential stages are surrounded by exceptions blocks. In case of non-fatal failures (such as silence causing `simple-diarizer` to crash), the error traceback is logged in `diagnostic.log` while ensuring any successfully processed segment array is written to `transcript.json` as a fallback.
+ 
+ ---
+ 
+ ## The Workflow summary:
+ `Chrome Extension (webm)` ➡️ `Downloads Folder` ➡️ `Tauri (Rust) triggers Python` ➡️ `WhisperX + Clustering (transcript.json & diagnostic.log)` ➡️ `React (Vertical UI + Exporters)`
