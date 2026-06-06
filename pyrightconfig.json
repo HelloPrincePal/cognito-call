@@ -1,4 +1,4 @@
 {
-  "venvPath": "cognito-desktop",
+  "venvPath": "./cognito-desktop",
   "venv": "venv"
 }
