@@ -1,4 +1,7 @@
 {
   "venvPath": "./cognito-desktop",
-  "venv": "venv"
+  "venv": "venv",
+  "extraPaths": [
+    "cognito-desktop/venv/lib/python3.9/site-packages"
+  ]
 }

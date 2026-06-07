@@ -4,7 +4,7 @@ import os
 import sys
 import torch
 import time
-import psutil
+import psutil  # type: ignore
 import traceback
 from datetime import datetime
 
@@ -238,8 +238,8 @@ def main(folder_path):
                             word_mid = (word_start + word_end) / 2.0
                             assigned_label = "Speaker ?"
                             for ds in diar_segments:
-                                if ds['start'] <= word_mid <= ds['end']:
-                                    assigned_label = f"Speaker {ds['label']}"
+                                if ds['start'] <= word_mid <= ds['end']:  # type: ignore
+                                    assigned_label = f"Speaker {ds['label']}"  # type: ignore
                                     break
                                     
                             word_obj['speaker'] = assigned_label
