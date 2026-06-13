@@ -1,5 +1,6 @@
-whisperx
+mlx-whisper
 simple-diarizer
-torch
-torchaudio
+speechbrain==0.5.16
+huggingface-hub<1.0
 psutil
+soundfile
