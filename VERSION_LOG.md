@@ -15,6 +15,7 @@ We follow the **X.Y.Z** semantic versioning format:
 
 | Version | Date | Summary | Key Impact |
 | :--- | :--- | :--- | :--- |
+| **v0.6.0** | 2026-06-13 | **Apple-Native MLX Migration** | Memory-efficient mlx-whisper backend + aggressive memory releases |
 | **v0.5.1** | 2026-05-30 | **Diagnostic Logging & Light Mode Refactor** | Stable Python logger (psutil) + premium light mode dashboard & segment exporters |
 | **v0.5.0** | 2026-05-19 | **Local AI Transcription Pipeline** | 100% offline WhisperX + Clustering pipeline |
 | **v0.4.0** | 2026-05-18 | **Cognito Video Gallery (Tauri)** | Initialized Phase 2 desktop app |
@@ -26,6 +27,18 @@ We follow the **X.Y.Z** semantic versioning format:
 | **v0.2.0** | 2026-03-15 | **Architecture & Audio Overhaul** | Complete re-architecture & Mic mixing |
 
 | **v0.1.0** | 2026-03-15 | **Initial Prototype** | Basic tab recording proof-of-concept |
+
+---
+
+## [v0.6.0] — 2026-06-13
+**Git Push Action:** "feat: migrate local AI pipeline to Apple-native MLX and implement aggressive cache releasing"
+
+### 🚀 Implementation
+- **mlx-whisper Migration:** Replaced the heavy PyTorch-based WhisperX with Apple-native `mlx-whisper` using a 4-bit quantized base model (`mlx-community/whisper-base-mlx-q4`) for fast CPU/GPU utilization on macOS.
+- **Aggressive Memory Releases:** Resolved the unified memory leak by introducing cache flushes (`mlx.core.clear_cache()` and `torch.mps.empty_cache()`), garbage collection (`gc.collect()`), and diarizer object deletions (`del diar` inside a guarantee-executing `finally` block) at each logical phase boundary.
+- **SpeechBrain/HuggingFace Backward Compatibility:** Pinned `speechbrain==0.5.16` and `huggingface-hub<1.0` and wrote a monkeypatch for `hf_hub_download` to circumvent legacy parameter mapping issues.
+- **Tuned Diarizer Thresholds:** Switched clustering to dynamically detect the speaker count (`num_speakers=None`) and raised clustering thresholds to `0.20` to eliminate false voice identification on silent or static audio segments.
+- **Cleaned Empty Segments:** Filtered out empty text blocks during transcript merging to ensure the final JSON matches high quality standards.
 
 ---
 

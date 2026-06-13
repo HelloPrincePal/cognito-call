@@ -2,6 +2,27 @@
 
 ---
 
+## [2026-06-13 16:15 IST]
+
+### 💡 Summary
+Migrated the local AI transcription pipeline from PyTorch + WhisperX to Apple-native, memory-efficient MLX (`mlx-whisper`) and tuned `simple-diarizer` to reduce speaker hallucinations. Integrated aggressive memory management logic (clearing MLX and PyTorch GPU caches at phase boundaries) to prevent memory bloating on Apple Silicon.
+
+### 🚀 Why
+- **Performance & Efficiency:** Dropped processing time and massive RAM overhead (avoiding the 4.34 GB unified memory allocation), preventing potential memory pressure crashes.
+- **Unified Native Stack:** Eliminated heavy PyTorch framework dependencies in favor of Apple-native MLX.
+- **Robustness:** Fixed package conflicts by pinning SpeechBrain and HuggingFace Hub version limits and monkeypatching legacy call signatures.
+- **Diarizer Optimization:** Resolved speaker hallucinations on silence/noise by using dynamic speaker count auto-detection and a conservative clustering threshold.
+
+### 📄 Changed Files
+- `cognito-desktop/python/transcriber.py`
+- `cognito-desktop/python/requirements.txt`
+- `.gitignore`
+- `ARCHITECTURE.md`
+- `VERSION_LOG.md`
+- `CHANGELOG.md`
+
+---
+
 ## [2026-05-30 02:00 IST]
 
 ### 💡 Summary

@@ -56,20 +56,21 @@ The Chrome extension acts as the primary recording mechanism. It is built using 
  The "Brain" of the application. A completely offline, token-free Python pipeline that processes the isolated audio streams.
  
  ### Key Tools:
- - **WhisperX** (Transcription & Word-level Alignment)
+ - **mlx-whisper** (Apple-native transcription & word-level alignment using MLX)
  - **simple-diarizer** (Spectral Clustering for Speaker Identification)
  - **FFmpeg / Torchaudio** (Audio Extraction)
  - **psutil** (Hardware Telemetry Monitoring)
  
  ### How it works:
- 1. **Transcription:** WhisperX transcribes both `mic.webm` and `tab.webm` separately, generating exact millisecond timestamps for every spoken word.
+ 1. **Transcription:** mlx-whisper transcribes both `mic.webm` and `tab.webm` separately, generating exact millisecond timestamps for every spoken word.
  2. **Token-Free Diarization:** Instead of relying on gated models like Pyannote (which require HuggingFace API tokens and Accept-Terms agreements), the pipeline uses `simple-diarizer`. It runs a Spectral Clustering mathematical algorithm exclusively on `tab.webm` to separate the remote voices into "Speaker 1", "Speaker 2", etc.
  3. **Custom Stitcher:** The script merges the locally transcribed microphone array ("Me") with the diarized remote array ("Speaker X"), sorts all the words chronologically, and compiles them into a unified `transcript.json`.
- 4. **Security Patches:** The script contains monkeypatches for PyTorch 2.6+ `weights_only` serialization blocks to ensure older model checkpoints load flawlessly on modern systems without security exceptions.
+ 4. **Security & Backward Compatibility Patches:** The script contains compatibility monkeypatches for SpeechBrain/HuggingFace libraries to bypass legacy argument conflicts and ensure flawless loading on modern systems.
  5. **Black-Box Diagnostic Logger:** An integrated diagnostics module creates/appends to a `diagnostic.log` file inside the processed folder. It captures initial file metrics, execution timing metrics per phase (`time.perf_counter()`), and system-wide + process-specific hardware resources (CPU, RAM used/total) at baseline, peak, and post-cleanup.
  6. **Resilient Failure Boundaries:** Essential stages are surrounded by exceptions blocks. In case of non-fatal failures (such as silence causing `simple-diarizer` to crash), the error traceback is logged in `diagnostic.log` while ensuring any successfully processed segment array is written to `transcript.json` as a fallback.
+ 7. **Aggressive Memory Management:** To prevent memory pressure issues on Apple Silicon, the pipeline clears the GPU caches via `mlx.core.clear_cache()` and PyTorch's cache via `torch.mps.empty_cache()`, explicitly deleting intermediate objects and running garbage collection at each major phase boundary.
  
  ---
  
  ## The Workflow summary:
- `Chrome Extension (webm)` ➡️ `Downloads Folder` ➡️ `Tauri (Rust) triggers Python` ➡️ `WhisperX + Clustering (transcript.json & diagnostic.log)` ➡️ `React (Vertical UI + Exporters)`
+ `Chrome Extension (webm)` ➡️ `Downloads Folder` ➡️ `Tauri (Rust) triggers Python` ➡️ `mlx-whisper + Clustering (transcript.json & diagnostic.log)` ➡️ `React (Vertical UI + Exporters)`
