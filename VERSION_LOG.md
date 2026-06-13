@@ -31,12 +31,14 @@ We follow the **X.Y.Z** semantic versioning format:
 ---
 
 ## [v0.6.0] — 2026-06-13
-**Git Push Action:** "feat: migrate local AI pipeline to Apple-native MLX and implement aggressive cache releasing"
+**Git Push Action:** "feat: migrate local AI pipeline to Apple-native MLX, implement aggressive cache releasing, and integrate Gemma 2 2b summarization"
 
 ### 🚀 Implementation
 - **mlx-whisper Migration:** Replaced the heavy PyTorch-based WhisperX with Apple-native `mlx-whisper` using a 4-bit quantized base model (`mlx-community/whisper-base-mlx-q4`) for fast CPU/GPU utilization on macOS.
-- **Aggressive Memory Releases:** Resolved the unified memory leak by introducing cache flushes (`mlx.core.clear_cache()` and `torch.mps.empty_cache()`), garbage collection (`gc.collect()`), and diarizer object deletions (`del diar` inside a guarantee-executing `finally` block) at each logical phase boundary.
-- **SpeechBrain/HuggingFace Backward Compatibility:** Pinned `speechbrain==0.5.16` and `huggingface-hub<1.0` and wrote a monkeypatch for `hf_hub_download` to circumvent legacy parameter mapping issues.
+- **Local Gemma 2 2b Summarization:** Integrated `mlx-lm` using the 4-bit quantized `mlx-community/gemma-2-2b-it-4bit` model to automatically summarize meetings and extract key tasks/action items into `summary.json` immediately after transcription.
+- **Aggressive Memory Releases:** Resolved the unified memory leak by introducing cache flushes (`mlx.core.clear_cache()` and `torch.mps.empty_cache()`), garbage collection (`gc.collect()`), and diarizer/LLM object deletions inside guarantee-executing `finally` blocks at each logical phase boundary.
+- **Rust Backend Data Hydration:** Updated Tauri Rust commands (`get_session_details`, `save_session_notes`, `save_session_action_items`) to read and write directly to `summary.json` to persist checkbox status and note modifications while maintaining backward compatibility with older text files.
+- **React UI Auto-Refresh:** Configured the frontend (`Player.tsx`) to trigger a data refresh when transcription/summarization completes, instantly loading notes and checkboxes without requiring a session switch.
 - **Tuned Diarizer Thresholds:** Switched clustering to dynamically detect the speaker count (`num_speakers=None`) and raised clustering thresholds to `0.20` to eliminate false voice identification on silent or static audio segments.
 - **Cleaned Empty Segments:** Filtered out empty text blocks during transcript merging to ensure the final JSON matches high quality standards.
 

@@ -92,6 +92,92 @@ def log_resources(folder_path, point_label):
     except Exception as e:
         log_diagnostic(folder_path, f"[ERROR] Failed to log hardware resources at '{point_label}': {e}")
 
+def generate_intelligence(transcript_text, folder_path):
+    try:
+        import mlx_lm
+    except ImportError:
+        log_diagnostic(folder_path, "[ERROR] mlx-lm library not installed. Skipping intelligence generation.")
+        return
+
+    model_id = "mlx-community/gemma-2-2b-it-4bit"
+    emit_progress("summarizing", "Generating meeting summary and action items with Gemma...")
+    log_diagnostic(folder_path, f"Loading LLM {model_id} for intelligence generation...")
+    
+    try:
+        model, tokenizer = mlx_lm.load(model_id)
+        
+        system_prompt = (
+            "You are an executive assistant. Read the following meeting transcript. Provide a 1-paragraph summary of the meeting. "
+            "Then, provide a bulleted list of any action items or tasks promised during the meeting. "
+            "Format your output strictly as a JSON object with keys 'notes' (string) and 'action_items' (array of strings)."
+        )
+        
+        messages = [
+            {"role": "user", "content": f"{system_prompt}\n\nHere is the transcript:\n{transcript_text}"}
+        ]
+        formatted_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        
+        log_diagnostic(folder_path, "Generating intelligence summary from transcript...")
+        response = mlx_lm.generate(model, tokenizer, prompt=formatted_prompt, max_tokens=1024, verbose=False)
+        
+        # Clean up model references and clear cache immediately
+        del model
+        try:
+            mx.metal.clear_cache()
+        except Exception:
+            pass
+        try:
+            mx.clear_cache()
+        except Exception:
+            pass
+        gc.collect()
+        
+        log_diagnostic(folder_path, f"Raw response from Gemma: {response}")
+        
+        # Parse JSON from response
+        clean_response = response.strip()
+        if "```json" in clean_response:
+            clean_response = clean_response.split("```json")[1].split("```")[0].strip()
+        elif "```" in clean_response:
+            clean_response = clean_response.split("```")[1].split("```")[0].strip()
+            
+        try:
+            intelligence_data = json.loads(clean_response)
+        except json.JSONDecodeError:
+            log_diagnostic(folder_path, "[WARNING] JSON decoding failed, trying custom cleanup...")
+            # Try to handle trailing commas in lists
+            clean_response_fixed = clean_response.replace(',\n}', '\n}').replace(',\n  }', '\n  }')
+            intelligence_data = json.loads(clean_response_fixed)
+        
+        notes = intelligence_data.get("notes", "")
+        raw_items = intelligence_data.get("action_items", [])
+        
+        action_items = []
+        for item in raw_items:
+            if isinstance(item, dict) and "text" in item:
+                action_items.append({
+                    "text": item["text"],
+                    "done": item.get("done", False)
+                })
+            elif isinstance(item, str):
+                action_items.append({
+                    "text": item,
+                    "done": False
+                })
+                
+        summary_path = os.path.join(folder_path, "summary.json")
+        with open(summary_path, "w", encoding="utf-8") as f:
+            json.dump({
+                "notes": notes,
+                "action_items": action_items
+            }, f, indent=2, ensure_ascii=False)
+            
+        log_diagnostic(folder_path, "Intelligence summary successfully saved to summary.json")
+        
+    except Exception as e:
+        log_diagnostic(folder_path, f"[ERROR] Intelligence generation failed: {e}")
+        log_diagnostic(folder_path, traceback.format_exc())
+
 def main(folder_path):
     psutil.cpu_percent(interval=None)
     psutil.Process(os.getpid()).cpu_percent(interval=None)
@@ -304,6 +390,10 @@ def main(folder_path):
         
         emit_progress("complete", "Transcription complete.")
         gc.collect()
+        
+        # Compile full transcript text for Gemma
+        transcript_text = "\n".join([f"{seg['speaker']}: {seg['text']}" for seg in final_segments])
+        generate_intelligence(transcript_text, folder_path)
         
     except Exception as e:
         log_diagnostic(folder_path, f"[CRITICAL ERROR] Pipeline crashed: {e}")

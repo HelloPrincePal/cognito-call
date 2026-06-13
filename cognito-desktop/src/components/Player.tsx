@@ -96,6 +96,7 @@ export default function KaraokePlayer({
               .then(setTranscript)
               .catch(console.error);
           }
+          fetchSessionDetails();
         }
       } catch (e) { console.error(e); }
     });

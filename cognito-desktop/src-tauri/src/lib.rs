@@ -142,12 +142,51 @@ async fn process_recording(folder_path: String, window: tauri::Window, state: St
     Ok(())
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+struct ActionItem {
+    text: String,
+    done: bool,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SummaryData {
+    notes: String,
+    action_items: Vec<ActionItem>,
+}
+
 #[derive(serde::Serialize)]
 struct SessionDetails {
     name: String,
     notes: String,
     action_items: String,
     transcript_exists: bool,
+}
+
+fn parse_serialized_action_items(text: &str) -> Vec<ActionItem> {
+    if text.trim().is_empty() {
+        return vec![];
+    }
+    text.split('\n')
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| {
+            if line.starts_with("[x] ") || line.starts_with("[X] ") {
+                ActionItem {
+                    text: line[4..].to_string(),
+                    done: true,
+                }
+            } else if line.starts_with("[ ] ") {
+                ActionItem {
+                    text: line[4..].to_string(),
+                    done: false,
+                }
+            } else {
+                ActionItem {
+                    text: line.to_string(),
+                    done: false,
+                }
+            }
+        })
+        .collect()
 }
 
 #[tauri::command]
@@ -174,18 +213,35 @@ fn get_session_details(path: String) -> Result<SessionDetails, String> {
         }
     }
 
-    let notes_path = folder_path.join("notes.txt");
-    let notes = if notes_path.exists() {
-        fs::read_to_string(&notes_path).unwrap_or_default()
+    let summary_path = folder_path.join("summary.json");
+    let (notes, action_items) = if summary_path.exists() {
+        if let Ok(content) = fs::read_to_string(&summary_path) {
+            if let Ok(summary) = serde_json::from_str::<SummaryData>(&content) {
+                let serialized_items: Vec<String> = summary.action_items.iter().map(|item| {
+                    format!("{} {}", if item.done { "[x]" } else { "[ ]" }, item.text)
+                }).collect();
+                (summary.notes, serialized_items.join("\n"))
+            } else {
+                ("".to_string(), "".to_string())
+            }
+        } else {
+            ("".to_string(), "".to_string())
+        }
     } else {
-        "".to_string()
-    };
+        let notes_path = folder_path.join("notes.txt");
+        let notes = if notes_path.exists() {
+            fs::read_to_string(&notes_path).unwrap_or_default()
+        } else {
+            "".to_string()
+        };
 
-    let action_items_path = folder_path.join("action_items.txt");
-    let action_items = if action_items_path.exists() {
-        fs::read_to_string(&action_items_path).unwrap_or_default()
-    } else {
-        "".to_string()
+        let action_items_path = folder_path.join("action_items.txt");
+        let action_items = if action_items_path.exists() {
+            fs::read_to_string(&action_items_path).unwrap_or_default()
+        } else {
+            "".to_string()
+        };
+        (notes, action_items)
     };
 
     let transcript_path = folder_path.join("transcript.json");
@@ -230,8 +286,25 @@ fn save_session_notes(path: String, notes: String) -> Result<(), String> {
     if !folder_path.exists() {
         return Err("Session folder does not exist".to_string());
     }
-    let notes_path = folder_path.join("notes.txt");
-    fs::write(notes_path, notes).map_err(|e| e.to_string())?;
+    
+    let summary_path = folder_path.join("summary.json");
+    if summary_path.exists() {
+        let mut summary_data = if let Ok(content) = fs::read_to_string(&summary_path) {
+            serde_json::from_str::<serde_json::Value>(&content).unwrap_or_default()
+        } else {
+            serde_json::Value::Object(serde_json::Map::new())
+        };
+        
+        if let Some(obj) = summary_data.as_object_mut() {
+            obj.insert("notes".to_string(), serde_json::Value::String(notes));
+        }
+        
+        let file = fs::File::create(&summary_path).map_err(|e| e.to_string())?;
+        serde_json::to_writer_pretty(file, &summary_data).map_err(|e| e.to_string())?;
+    } else {
+        let notes_path = folder_path.join("notes.txt");
+        fs::write(notes_path, notes).map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 
@@ -241,8 +314,27 @@ fn save_session_action_items(path: String, action_items: String) -> Result<(), S
     if !folder_path.exists() {
         return Err("Session folder does not exist".to_string());
     }
-    let action_items_path = folder_path.join("action_items.txt");
-    fs::write(action_items_path, action_items).map_err(|e| e.to_string())?;
+    
+    let summary_path = folder_path.join("summary.json");
+    if summary_path.exists() {
+        let tasks = parse_serialized_action_items(&action_items);
+        
+        let mut summary_data = if let Ok(content) = fs::read_to_string(&summary_path) {
+            serde_json::from_str::<serde_json::Value>(&content).unwrap_or_default()
+        } else {
+            serde_json::Value::Object(serde_json::Map::new())
+        };
+        
+        if let Some(obj) = summary_data.as_object_mut() {
+            obj.insert("action_items".to_string(), serde_json::json!(tasks));
+        }
+        
+        let file = fs::File::create(&summary_path).map_err(|e| e.to_string())?;
+        serde_json::to_writer_pretty(file, &summary_data).map_err(|e| e.to_string())?;
+    } else {
+        let action_items_path = folder_path.join("action_items.txt");
+        fs::write(action_items_path, action_items).map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 
