@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { FileText, BookOpen, ListTodo, Save, Plus, Trash2, Download } from 'lucide-react';
+import { FileText, BookOpen, ListTodo, Save, Plus, Trash2, Download, Maximize, Minimize } from 'lucide-react';
 
 // --- Type Definitions ---
 interface Word { word: string; start: number; end: number; }
@@ -32,8 +32,10 @@ export default function KaraokePlayer({
   onTasksUpdated?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   // Processing State
   const [isProcessing, setIsProcessing] = useState(false);
@@ -122,6 +124,40 @@ export default function KaraokePlayer({
       videoRef.current.play();
     }
   };
+
+  // 6. Fullscreen toggle for the video player
+  const toggleFullscreen = () => {
+    const el = videoContainerRef.current as (HTMLElement & {
+      webkitRequestFullscreen?: () => void;
+    }) | null;
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      webkitExitFullscreen?: () => void;
+    };
+    if (!el) return;
+
+    const isActive = doc.fullscreenElement || doc.webkitFullscreenElement;
+    if (!isActive) {
+      if (el.requestFullscreen) el.requestFullscreen();
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    } else {
+      if (doc.exitFullscreen) doc.exitFullscreen();
+      else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
+    }
+  };
+
+  useEffect(() => {
+    const doc = document as Document & { webkitFullscreenElement?: Element | null };
+    const handleChange = () => {
+      setIsFullscreen(!!(doc.fullscreenElement || doc.webkitFullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleChange);
+    document.addEventListener('webkitfullscreenchange', handleChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleChange);
+      document.removeEventListener('webkitfullscreenchange', handleChange);
+    };
+  }, []);
 
   const formatTime = (secs: number) => {
     const min = Math.floor(secs / 60);
@@ -237,15 +273,32 @@ export default function KaraokePlayer({
     <div className="flex flex-col h-full overflow-hidden bg-[#F9FAFB]">
       {/* Top Section: Video Player */}
       <div className="flex-shrink-0 w-full bg-white border-b border-gray-200 p-4 flex justify-center items-center">
-        <div className="w-full max-w-2xl aspect-video bg-black rounded-xl overflow-hidden shadow-sm relative group">
-          <video 
-            ref={videoRef} 
-            src={videoUrl} 
-            controls 
+        <div
+          ref={videoContainerRef}
+          className={`w-full bg-black overflow-hidden shadow-sm relative group ${
+            isFullscreen
+              ? 'max-w-none h-full flex items-center justify-center'
+              : 'max-w-2xl aspect-video rounded-xl'
+          }`}
+        >
+          <video
+            ref={videoRef}
+            src={videoUrl}
+            controls
             className="w-full h-full object-contain"
             onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime || 0)}
           />
-          
+
+          {/* Fullscreen toggle */}
+          <button
+            onClick={toggleFullscreen}
+            className="absolute top-3 right-3 z-10 p-2 rounded-lg bg-black/50 hover:bg-black/70 text-white opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all cursor-pointer border-none backdrop-blur-sm outline-none"
+            title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            aria-label={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+          >
+            {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+          </button>
+
           {!transcript && !isProcessing && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm transition-all p-6 text-center">
               <p className="text-white font-semibold mb-4 text-sm max-w-xs select-none">

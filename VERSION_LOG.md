@@ -15,6 +15,7 @@ We follow the **X.Y.Z** semantic versioning format:
 
 | Version | Date | Summary | Key Impact |
 | :--- | :--- | :--- | :--- |
+| **v0.6.1** | 2026-07-23 | **Video Player Fullscreen** | Custom fullscreen toggle on the recording player (Fullscreen API + WebKit fallbacks) |
 | **v0.6.0** | 2026-06-13 | **Apple-Native MLX Migration** | Memory-efficient mlx-whisper backend + aggressive memory releases |
 | **v0.5.1** | 2026-05-30 | **Diagnostic Logging & Light Mode Refactor** | Stable Python logger (psutil) + premium light mode dashboard & segment exporters |
 | **v0.5.0** | 2026-05-19 | **Local AI Transcription Pipeline** | 100% offline WhisperX + Clustering pipeline |
@@ -27,6 +28,16 @@ We follow the **X.Y.Z** semantic versioning format:
 | **v0.2.0** | 2026-03-15 | **Architecture & Audio Overhaul** | Complete re-architecture & Mic mixing |
 
 | **v0.1.0** | 2026-03-15 | **Initial Prototype** | Basic tab recording proof-of-concept |
+
+---
+
+## [v0.6.1] — 2026-07-23
+**Git Push Action:** "feat: add fullscreen toggle to the recording video player"
+
+### 🚀 Implementation
+- **Fullscreen Control:** Added a custom overlay button to the video player in `Player.tsx` (top-right, revealed on hover) that toggles true fullscreen. The native WKWebView `<video controls>` UI does not surface a fullscreen affordance on macOS, so this restores that capability.
+- **Cross-Runtime API:** Requests fullscreen on the video container via `requestFullscreen()` with a `webkitRequestFullscreen()` fallback, and exits via `exitFullscreen()` / `webkitExitFullscreen()`.
+- **State Sync:** A `fullscreenchange` / `webkitfullscreenchange` listener drives an `isFullscreen` state so the button swaps between the Maximize and Minimize icons and the container layout adapts (edge-to-edge in fullscreen, rounded `aspect-video` card otherwise). Exiting via `Esc` stays in sync.
 
 ---
 

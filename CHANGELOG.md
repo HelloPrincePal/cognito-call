@@ -2,6 +2,23 @@
 
 ---
 
+## [2026-07-23 20:53 IST]
+
+### 💡 Summary
+Added a fullscreen toggle to the recording video player. A custom control button now overlays the video (top-right, revealed on hover) and expands the player to true fullscreen using the standard Fullscreen API with WebKit fallbacks for the macOS WKWebView.
+
+### 🚀 Why
+- **Native controls gap:** The player relies on the WKWebView's built-in `<video controls>` UI, which does not expose a fullscreen button on macOS — leaving no way to enlarge the recording for reviewing dense screen-shares.
+- **Better review UX:** Users can now inspect shared screens and diagrams at full resolution and exit back to the dashboard layout with a single click (or `Esc`).
+- **Robust cross-runtime behavior:** Uses `requestFullscreen`/`exitFullscreen` with `webkit*` fallbacks and a `fullscreenchange` listener so the button icon (Maximize ↔ Minimize) always reflects the real fullscreen state.
+
+### 📄 Changed Files
+- `cognito-desktop/src/components/Player.tsx`
+- `VERSION_LOG.md`
+- `CHANGELOG.md`
+
+---
+
 ## [2026-06-13 19:15 IST]
 
 ### 💡 Summary
