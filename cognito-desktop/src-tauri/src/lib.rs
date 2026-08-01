@@ -157,7 +157,8 @@ fn spawn_transcription_job(
            .arg("--user-name")
            .arg(&u_name)
            .stdout(Stdio::piped())
-           .stderr(Stdio::piped());
+           .stderr(Stdio::piped())
+           .current_dir(&folder_path);
 
         // Append ~/.cognitocall/bin/ to PATH so subprocesses can find static FFmpeg binary
         let local_bin_dir = home_dir.as_ref().map(|h| h.join(".cognitocall").join("bin"));
