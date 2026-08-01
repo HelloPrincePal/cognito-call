@@ -147,25 +147,49 @@ fn spawn_transcription_job(
 
         let u_name = user_name.unwrap_or_else(|| "Me".to_string());
 
-        let mut child_process = match Command::new(&helper_bin)
-            .arg(&transcriber_script) 
-            .arg(&folder_path)
-            .arg("--user-name")
-            .arg(&u_name)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn() {
-                Ok(child) => child,
-                Err(e) => {
-                    println!("Failed to start Python sidecar: {}", e);
-                    let _ = window.emit("transcription-progress", format!("{{\"status\": \"error\", \"message\": \"Failed to start Python transcriber: {}\"}}", e));
-                    let mut is_t = is_transcribing_flag.lock().unwrap();
-                    *is_t = false;
-                    let mut cur = current_path_flag.lock().unwrap();
-                    *cur = None;
-                    return;
+        // Remove failed.txt marker at start of new run if it exists
+        let failed_txt_path = std::path::Path::new(&folder_path).join("failed.txt");
+        let _ = fs::remove_file(&failed_txt_path);
+
+        let mut cmd = Command::new(&helper_bin);
+        cmd.arg(&transcriber_script) 
+           .arg(&folder_path)
+           .arg("--user-name")
+           .arg(&u_name)
+           .stdout(Stdio::piped())
+           .stderr(Stdio::piped());
+
+        // Append ~/.cognitocall/bin/ to PATH so subprocesses can find static FFmpeg binary
+        let local_bin_dir = home_dir.as_ref().map(|h| h.join(".cognitocall").join("bin"));
+        if let Some(ref bin_p) = local_bin_dir {
+            if bin_p.exists() {
+                if let Some(path_env) = std::env::var_os("PATH") {
+                    let mut paths = std::env::split_paths(&path_env).collect::<Vec<_>>();
+                    paths.push(bin_p.clone());
+                    if let Ok(new_path) = std::env::join_paths(paths) {
+                        cmd.env("PATH", new_path);
+                    }
                 }
-            };
+            }
+        }
+
+        let mut child_process = match cmd.spawn() {
+            Ok(child) => child,
+            Err(e) => {
+                // Write failed.txt marker so we don't loop endlessly
+                if let Ok(mut fp) = fs::File::create(&failed_txt_path) {
+                    use std::io::Write;
+                    let _ = fp.write_all(b"failed");
+                }
+                println!("Failed to start Python sidecar: {}", e);
+                let _ = window.emit("transcription-progress", format!("{{\"status\": \"error\", \"message\": \"Failed to start Python transcriber: {}\"}}", e));
+                let mut is_t = is_transcribing_flag.lock().unwrap();
+                *is_t = false;
+                let mut cur = current_path_flag.lock().unwrap();
+                *cur = None;
+                return;
+            }
+        };
 
         let pid = child_process.id();
         {
@@ -214,6 +238,12 @@ fn spawn_transcription_job(
             if status.success() {
                 window.emit("transcription-progress", "{\"status\": \"finished\", \"message\": \"Transcription completed successfully\"}").unwrap();
             } else {
+                // Write failed.txt marker so we don't loop endlessly
+                let failed_txt_path = std::path::Path::new(&folder_path).join("failed.txt");
+                if let Ok(mut fp) = fs::File::create(&failed_txt_path) {
+                    use std::io::Write;
+                    let _ = fp.write_all(b"failed");
+                }
                 window.emit("transcription-progress", "{\"status\": \"error\", \"message\": \"Python sidecar process failed or exited with error.\"}").unwrap();
             }
         }
@@ -291,9 +321,10 @@ fn get_sessions(state: State<'_, AppState>, window: tauri::Window, user_name: Op
     // Sort sessions newest first
     sessions.sort_by(|a, b| b.created_at.cmp(&a.created_at));
 
-    // "Recent-Only" Startup logic: Auto-run background transcription for only the newest session if it lacks a summary
+    // "Recent-Only" Startup logic: Auto-run background transcription for only the newest session if it lacks a summary and hasn't failed
     if let Some(newest_session) = sessions.first_mut() {
-        if !newest_session.has_summary {
+        let session_failed = std::path::Path::new(&newest_session.path).join("failed.txt").exists();
+        if !newest_session.has_summary && !session_failed {
             let mut is_transcribing = state.is_transcribing.lock().unwrap();
             if !*is_transcribing {
                 *is_transcribing = true;
@@ -348,12 +379,35 @@ fn cancel_transcription(state: State<'_, AppState>, window: tauri::Window) -> Re
             #[cfg(target_os = "windows")]
             {
                 let _ = Command::new("taskkill").args(&["/F", "/PID", &pid.to_string()]).output();
+                let _ = Command::new("taskkill").args(&["/F", "/IM", "cognito-assistant.exe"]).output();
             }
             #[cfg(not(target_os = "windows"))]
             {
                 let _ = Command::new("kill").args(&["-9", &pid.to_string()]).output();
+                let _ = Command::new("pkill").args(&["-9", "-f", "cognito-assistant"]).output();
             }
         });
+    } else {
+        // Fallback pkill in case PID wasn't captured or multiple instances got orphaned
+        std::thread::spawn(move || {
+            #[cfg(target_os = "windows")]
+            let _ = Command::new("taskkill").args(&["/F", "/IM", "cognito-assistant.exe"]).output();
+            #[cfg(not(target_os = "windows"))]
+            let _ = Command::new("pkill").args(&["-9", "-f", "cognito-assistant"]).output();
+        });
+    }
+
+    let current_path_opt = {
+        let p = state.current_transcribing_path.lock().unwrap();
+        p.clone()
+    };
+
+    if let Some(ref path_str) = current_path_opt {
+        let failed_txt_path = std::path::Path::new(path_str).join("failed.txt");
+        if let Ok(mut fp) = fs::File::create(&failed_txt_path) {
+            use std::io::Write;
+            let _ = fp.write_all(b"failed");
+        }
     }
 
     {
@@ -646,7 +700,7 @@ pub fn run() {
             save_session_action_items
         ])
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::Destroyed = event {
+            if let tauri::WindowEvent::Destroyed | tauri::WindowEvent::CloseRequested = event {
                 let state = window.state::<AppState>();
                 let pid_opt = {
                     let mut p = state.active_pid.lock().unwrap();
@@ -658,8 +712,21 @@ pub fn run() {
                     #[cfg(not(target_os = "windows"))]
                     let _ = Command::new("kill").args(&["-9", &pid.to_string()]).output();
                 }
+                // Wipe any duplicates
+                #[cfg(target_os = "windows")]
+                let _ = Command::new("taskkill").args(&["/F", "/IM", "cognito-assistant.exe"]).output();
+                #[cfg(not(target_os = "windows"))]
+                let _ = Command::new("pkill").args(&["-9", "-f", "cognito-assistant"]).output();
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                #[cfg(target_os = "windows")]
+                let _ = Command::new("taskkill").args(&["/F", "/IM", "cognito-assistant.exe"]).output();
+                #[cfg(not(target_os = "windows"))]
+                let _ = Command::new("pkill").args(&["-9", "-f", "cognito-assistant"]).output();
+            }
+        });
 }

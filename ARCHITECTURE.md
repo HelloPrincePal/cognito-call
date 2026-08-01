@@ -140,12 +140,19 @@ cd cognito-desktop
 npm run tauri dev
 ```
 
-### 4. Manually Terminate Running Sidecar Processes
-If an AI processing job hangs or needs to be manually stopped outside the app UI:
-
-```bash
-pkill -f cognito-assistant
-```
+### 4. Manually Terminate Running Sidecar Processes (Memory Rescue)
+> [!WARNING]
+> **Emergency Memory Pressure Rescue**: If your Mac ever experiences high memory pressure (yellow/red graph in Activity Monitor) or feels laggy due to orphaned Python processes from cancelled/crashed jobs, copy-paste these commands into **Terminal** to instantly terminate all background helpers and reclaim your RAM:
+> 
+> ```bash
+> # Force kill all Cognito Call background assistants
+> pkill -9 -f cognito-assistant
+> 
+> # Case-insensitive kill of any remaining orphaned Python sidecars
+> pkill -9 -f python
+> ```
+> 
+> Running these commands immediately frees up system memory and resolves UI lags without requiring a system reboot.
 
 ### 5. Inspect Model Cache Sizes
 Check total disk space consumed by downloaded quantized MLX models (Whisper + Gemma):
