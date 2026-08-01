@@ -14,6 +14,8 @@ permissions:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -49,6 +51,7 @@ jobs:
 
   build-desktop-mac:
     runs-on: macos-latest
+    needs: build-and-release
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -72,8 +75,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: 'cognito-desktop'
-          tagName: v__VERSION__
-          releaseName: 'Cognito Call Desktop v__VERSION__'
+          tagName: v${{ needs.build-and-release.outputs.version }}
+          releaseName: 'Cognito Call v${{ needs.build-and-release.outputs.version }}'
           releaseBody: 'Cognito Call local AI desktop application bundle for macOS.'
           releaseDraft: false
           prerelease: false
