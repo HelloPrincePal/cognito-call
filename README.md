@@ -1,7 +1,7 @@
 # Cognito Call 🧠🔒
 
 [![App Downloads](https://img.shields.io/github/downloads/HelloPrincePal/cognito-call/total?style=for-the-badge&color=3B82F6&logo=github&label=App%20Downloads)](https://github.com/HelloPrincePal/cognito-call/releases)
-[![Repo Views](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2FHelloPrincePal%2Fcognito-call&count_bg=%238B5CF6&title_bg=%231E293B&icon=github&icon_color=%23FFFFFF&title=Repo%20Views&edge_flat=false)](https://github.com/HelloPrincePal/cognito-call)
+[![Repo Views](https://img.shields.io/endpoint?url=https://hits.dwyl.com/HelloPrincePal/cognito-call.json&style=for-the-badge&color=8B5CF6&label=Repo%20Views)](https://github.com/HelloPrincePal/cognito-call)
 [![Latest Release](https://img.shields.io/github/v/release/HelloPrincePal/cognito-call?style=for-the-badge&color=10B981&label=Latest%20Release)](https://github.com/HelloPrincePal/cognito-call/releases/latest)
 [![Privacy Guarantee](https://img.shields.io/badge/Privacy-100%25%20Local%20%26%20Offline-6366F1?style=for-the-badge&logo=apple)](https://github.com/HelloPrincePal/cognito-call)
 
@@ -19,8 +19,8 @@ Cognito Call consists of two parts:
 
 ### Step 1: Install Chrome Extension
 
-1. Download the latest **[cognito-call-extension.zip](https://github.com/HelloPrincePal/cognito-call/releases/latest/download/cognito-call-extension.zip)**.
-2. Unzip the downloaded file on your computer.
+1. Download the latest **[cognito-call-extension.zip](https://github.com/HelloPrincePal/cognito-call/releases/latest/download/cognito-call-extension.zip)**. *(Note: macOS Safari automatically expands `.zip` files into a folder upon download).*
+2. If downloaded as a `.zip` file, double-click to extract it into a folder.
 3. Open Google Chrome and navigate to `chrome://extensions`.
 4. Enable **Developer mode** (toggle in the top-right corner).
 5. Click **Load unpacked** in the top-left corner.
