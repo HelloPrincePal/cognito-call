@@ -689,7 +689,7 @@ def main(folder_path, user_name="Me"):
         merge_time = time.perf_counter() - t_start
         log_diagnostic(folder_path, f"[TIMER] Merging, sorting and saving JSON took: {merge_time:.2f} seconds")
         
-        emit_progress("complete", "Transcription complete.")
+        emit_progress("transcription_complete", "Audio transcription complete. Loading local LLM...")
         gc.collect()
         
         # Run map-reduce intelligence generation

@@ -71,6 +71,8 @@ function App() {
           percent = 50;
         } else if (data.status === 'diarization') {
           percent = 70;
+        } else if (data.status === 'transcription_complete') {
+          percent = 78;
         } else if (data.status === 'llm_processing' || data.status === 'intelligence') {
           percent = 88;
         } else if (data.status === 'complete' || data.status === 'finished') {
