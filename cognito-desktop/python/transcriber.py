@@ -207,7 +207,7 @@ def generate_intelligence(final_segments, folder_path, user_name="Me"):
             formatted_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)  # type: ignore
 
             log_diagnostic(folder_path, f"Processing sentence refinement & summary for chunk {idx}/{total_chunks}...")
-            response = mlx_lm.generate(model, tokenizer, prompt=formatted_prompt, max_tokens=384, temp=0.1, verbose=False)
+            response = mlx_lm.generate(model, tokenizer, prompt=formatted_prompt, max_tokens=384, temperature=0.1, verbose=False)
 
             # Clear intermediate caches immediately
             try:
@@ -291,7 +291,7 @@ def generate_intelligence(final_segments, folder_path, user_name="Me"):
             formatted_reduce_prompt = tokenizer.apply_chat_template(reduce_messages, tokenize=False, add_generation_prompt=True)  # type: ignore
 
             log_diagnostic(folder_path, "Running final synthesis pass across all section summaries...")
-            final_response = mlx_lm.generate(model, tokenizer, prompt=formatted_reduce_prompt, max_tokens=400, temp=0.1, verbose=False)
+            final_response = mlx_lm.generate(model, tokenizer, prompt=formatted_reduce_prompt, max_tokens=400, temperature=0.1, verbose=False)
         else:
             final_response = response
 
