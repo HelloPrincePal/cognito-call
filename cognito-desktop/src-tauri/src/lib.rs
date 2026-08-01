@@ -700,7 +700,7 @@ pub fn run() {
             save_session_action_items
         ])
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::Destroyed | tauri::WindowEvent::CloseRequested { api: _ } = event {
+            if matches!(event, tauri::WindowEvent::Destroyed | tauri::WindowEvent::CloseRequested { .. }) {
                 let state = window.state::<AppState>();
                 let pid_opt = {
                     let mut p = state.active_pid.lock().unwrap();
