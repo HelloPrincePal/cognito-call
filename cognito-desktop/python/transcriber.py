@@ -15,7 +15,9 @@ import mlx_whisper
 # Bypass interactive PyTorch Hub trusted repo warnings for headless execution
 try:
     import torch.hub
-    torch.hub._check_repo_is_trusted = lambda *args, **kwargs: True
+    def _patched_check(*args, **kwargs):
+        pass
+    torch.hub._check_repo_is_trusted = _patched_check
 except Exception:
     pass
 
