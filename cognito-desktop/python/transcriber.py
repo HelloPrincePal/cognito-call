@@ -12,6 +12,13 @@ import torch
 import mlx.core as mx
 import mlx_whisper
 
+# Bypass interactive PyTorch Hub trusted repo warnings for headless execution
+try:
+    import torch.hub
+    torch.hub._check_repo_is_trusted = lambda *args, **kwargs: True
+except Exception:
+    pass
+
 import huggingface_hub
 # Monkeypatch huggingface_hub.hf_hub_download to redirect 'use_auth_token' to 'token' (fixing legacy SpeechBrain 0.5.16 call bug)
 original_hf_hub_download = huggingface_hub.hf_hub_download
