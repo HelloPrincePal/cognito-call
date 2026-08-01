@@ -107,7 +107,8 @@ def generate_intelligence(final_segments, folder_path, user_name="Me"):
     log_diagnostic(folder_path, f"Loading LLM {model_id} for user '{user_name}' transcript refinement and map-reduce intelligence...")
 
     # Group segments into chronological chunks (~15 minutes = 900 seconds per chunk)
-    chunk_interval_sec = 900.0
+    # Split transcript into 30-minute logical chunks (1800s) for ultra-fast GPU processing
+    chunk_interval_sec = 1800.0
     chunks = []
     current_chunk = []
     chunk_start_time = 0.0
@@ -127,7 +128,7 @@ def generate_intelligence(final_segments, folder_path, user_name="Me"):
         chunks.append(current_chunk)
 
     total_chunks = len(chunks)
-    log_diagnostic(folder_path, f"Split transcript into {total_chunks} chunk(s) for LLM processing.")
+    log_diagnostic(folder_path, f"Split transcript into {total_chunks} chunk(s) for fast LLM processing.")
 
     master_refined_segments = []
     chunk_summaries = []
@@ -139,13 +140,13 @@ def generate_intelligence(final_segments, folder_path, user_name="Me"):
         # MAP STAGE: Process each chunk for sentence-level refinement + local summary
         for idx, chunk in enumerate(chunks, 1):
             if total_chunks > 1:
-                emit_progress("summarizing", f"Refining sentences & analyzing section {idx} of {total_chunks} with Gemma...")
+                emit_progress("llm_processing", f"Refining sentences & analyzing section {idx} of {total_chunks} with Gemma...")
             else:
-                emit_progress("summarizing", "Refining transcript sentences and generating notes with Gemma...")
+                emit_progress("llm_processing", "Refining transcript sentences and generating notes with Gemma...")
 
             chunk_text = "\n".join([f"[{seg.get('start', 0.0):.1f}s - {seg.get('end', 0.0):.1f}s] {seg.get('speaker', 'Unknown')}: {seg.get('text', '')}" for seg in chunk])
-            if len(chunk_text) > 12000:
-                chunk_text = chunk_text[:12000] + "... [truncated]"
+            if len(chunk_text) > 8000:
+                chunk_text = chunk_text[:8000] + "... [truncated]"
 
             map_prompt = (
                 "You are an expert transcript editor and executive assistant.\n"
@@ -172,7 +173,7 @@ def generate_intelligence(final_segments, folder_path, user_name="Me"):
             formatted_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)  # type: ignore
 
             log_diagnostic(folder_path, f"Processing sentence refinement & summary for chunk {idx}/{total_chunks}...")
-            response = mlx_lm.generate(model, tokenizer, prompt=formatted_prompt, max_tokens=1024, verbose=False)
+            response = mlx_lm.generate(model, tokenizer, prompt=formatted_prompt, max_tokens=384, temp=0.1, verbose=False)
 
             # Clear intermediate caches immediately
             try:
@@ -256,7 +257,7 @@ def generate_intelligence(final_segments, folder_path, user_name="Me"):
             formatted_reduce_prompt = tokenizer.apply_chat_template(reduce_messages, tokenize=False, add_generation_prompt=True)  # type: ignore
 
             log_diagnostic(folder_path, "Running final synthesis pass across all section summaries...")
-            final_response = mlx_lm.generate(model, tokenizer, prompt=formatted_reduce_prompt, max_tokens=1024, verbose=False)
+            final_response = mlx_lm.generate(model, tokenizer, prompt=formatted_reduce_prompt, max_tokens=400, temp=0.1, verbose=False)
         else:
             final_response = response
 

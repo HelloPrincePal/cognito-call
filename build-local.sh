@@ -21,15 +21,22 @@ if ! command -v cargo &> /dev/null; then
     exit 1
 fi
 
+DATA_DIR="$HOME/.cognitocall"
+
 echo "🔹 1. Installing Node dependencies..."
 npm install
 
-echo "🔹 2. Building Tauri Desktop Application..."
+echo "🔹 2. Setting up local AI Python environment (~/.cognitocall)..."
+mkdir -p "$DATA_DIR/models"
+mkdir -p "$DATA_DIR/python"
+cp -f cognito-desktop/python/transcriber.py "$DATA_DIR/python/transcriber.py"
+
+echo "🔹 3. Building Tauri Desktop Application..."
 cd cognito-desktop
 npm install
 npm run tauri build
 
-echo "🔹 3. Installing compiled app to /Applications..."
+echo "🔹 4. Installing compiled app to /Applications..."
 BUILT_APP="src-tauri/target/release/bundle/macos/Cognito Call.app"
 
 if [ -d "$BUILT_APP" ]; then

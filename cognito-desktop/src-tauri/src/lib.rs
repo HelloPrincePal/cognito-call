@@ -75,9 +75,21 @@ fn spawn_transcription_job(
             *current_path = Some(folder_path.clone());
         }
 
-        // Use cognito-assistant process name so it displays clearly in macOS Activity Monitor / Task Manager
-        let python_bin_path = if std::path::Path::new("../venv/bin/python3").exists() {
-            std::path::PathBuf::from("../venv/bin/python3")
+        // Use absolute paths in ~/.cognitocall for installed desktop app, falling back to local dev workspace
+        let home_dir = dirs::home_dir();
+        let user_venv_python = home_dir.as_ref().map(|h| h.join(".cognitocall").join("venv").join("bin").join("python3"));
+        let local_venv_python = std::path::PathBuf::from("../venv/bin/python3");
+        
+        let python_bin_path = if let Some(ref p) = user_venv_python {
+            if p.exists() {
+                p.clone()
+            } else if local_venv_python.exists() {
+                local_venv_python
+            } else {
+                std::path::PathBuf::from("python3")
+            }
+        } else if local_venv_python.exists() {
+            local_venv_python
         } else {
             std::path::PathBuf::from("python3")
         };
@@ -97,10 +109,31 @@ fn spawn_transcription_job(
             python_bin_path
         };
 
+        // Locate transcriber.py dynamically
+        let user_transcriber = home_dir.as_ref().map(|h| h.join(".cognitocall").join("python").join("transcriber.py"));
+        let local_transcriber = std::path::PathBuf::from("../python/transcriber.py");
+        let bundled_transcriber = std::path::PathBuf::from("python/transcriber.py");
+
+        let transcriber_script = if let Some(ref p) = user_transcriber {
+            if p.exists() {
+                p.clone()
+            } else if local_transcriber.exists() {
+                local_transcriber
+            } else if bundled_transcriber.exists() {
+                bundled_transcriber
+            } else {
+                std::path::PathBuf::from("../python/transcriber.py")
+            }
+        } else if local_transcriber.exists() {
+            local_transcriber
+        } else {
+            std::path::PathBuf::from("../python/transcriber.py")
+        };
+
         let u_name = user_name.unwrap_or_else(|| "Me".to_string());
 
         let mut child_process = match Command::new(&helper_bin)
-            .arg("../python/transcriber.py") 
+            .arg(&transcriber_script) 
             .arg(&folder_path)
             .arg("--user-name")
             .arg(&u_name)
@@ -165,7 +198,7 @@ fn spawn_transcription_job(
             if status.success() {
                 window.emit("transcription-progress", "{\"status\": \"finished\", \"message\": \"Transcription completed successfully\"}").unwrap();
             } else {
-                window.emit("transcription-progress", "{\"status\": \"error\", \"message\": \"Python script stopped or exited.\"}").unwrap();
+                window.emit("transcription-progress", "{\"status\": \"error\", \"message\": \"Python sidecar process failed or exited with error.\"}").unwrap();
             }
         }
     });
