@@ -6,89 +6,72 @@ use tauri::{State, Emitter};
 
 struct AppState {
     is_transcribing: Arc<Mutex<bool>>,
+    current_transcribing_path: Arc<Mutex<Option<String>>>,
 }
 
 #[derive(serde::Serialize)]
 struct Session {
     id: String,
     name: String,
+    display_name: String,
     path: String,
     video_path: String,
     created_at: u64,
+    is_processing: bool,
+    has_summary: bool,
 }
 
-#[tauri::command]
-fn get_sessions() -> Result<Vec<Session>, String> {
-    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
-    let target_dir = home_dir.join("Downloads").join("CognitoCall");
-
-    if !target_dir.exists() {
-        return Ok(vec![]);
-    }
-
-    let mut sessions = Vec::new();
-
-    if let Ok(entries) = fs::read_dir(target_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
+fn format_folder_name_to_date(folder_name: &str) -> String {
+    let parts: Vec<&str> = folder_name.split('_').collect();
+    if !parts.is_empty() {
+        let date_part = parts[0];
+        let date_parts: Vec<&str> = date_part.split('-').collect();
+        if date_parts.len() == 3 {
+            let year = date_parts[0];
+            let month_num = date_parts[1];
+            let day = date_parts[2];
             
-            if path.is_dir() {
-                let video_path = path.join("video.webm");
-                
-                if video_path.exists() {
-                    let metadata = entry.metadata().map_err(|e| e.to_string())?;
-                    let created_at = metadata
-                        .created()
-                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
-                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs();
-
-                    let folder_name = entry.file_name().to_string_lossy().to_string();
-                    let mut name = folder_name.clone();
-
-                    // Read custom name from metadata.json if it exists
-                    let metadata_path = path.join("metadata.json");
-                    if metadata_path.exists() {
-                        if let Ok(content) = fs::read_to_string(&metadata_path) {
-                            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                                if let Some(n) = json.get("name").and_then(|v| v.as_str()) {
-                                    name = n.to_string();
-                                }
-                            }
-                        }
-                    }
-
-                    sessions.push(Session {
-                        id: folder_name,
-                        name,
-                        path: path.to_string_lossy().to_string(),
-                        video_path: video_path.to_string_lossy().to_string(),
-                        created_at,
-                    });
-                }
-            }
+            let month = match month_num {
+                "01" => "Jan",
+                "02" => "Feb",
+                "03" => "Mar",
+                "04" => "Apr",
+                "05" => "May",
+                "06" => "Jun",
+                "07" => "Jul",
+                "08" => "Aug",
+                "09" => "Sep",
+                "10" => "Oct",
+                "11" => "Nov",
+                "12" => "Dec",
+                _ => month_num,
+            };
+            
+            let day_clean = if day.starts_with('0') && day.len() > 1 {
+                &day[1..]
+            } else {
+                day
+            };
+            
+            return format!("{} {}, {}", month, day_clean, year);
         }
     }
-
-    sessions.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-
-    Ok(sessions)
+    folder_name.to_string()
 }
 
-#[tauri::command]
-async fn process_recording(folder_path: String, window: tauri::Window, state: State<'_, AppState>) -> Result<(), String> {
-    let mut is_transcribing = state.is_transcribing.lock().unwrap();
-    if *is_transcribing {
-        return Err("A transcription job is already running. Please wait to prevent RAM overload.".into());
-    }
-    *is_transcribing = true;
-    drop(is_transcribing); // Unlock immediately so we don't freeze
-
-    let transcribing_flag = Arc::clone(&state.is_transcribing);
-
-    // 2. Spawn Sidecar in a new OS thread
+fn spawn_transcription_job(
+    folder_path: String, 
+    window: tauri::Window, 
+    is_transcribing_flag: Arc<Mutex<bool>>, 
+    current_path_flag: Arc<Mutex<Option<String>>>
+) {
     std::thread::spawn(move || {
+        // Set the current path undergoing transcription
+        {
+            let mut current_path = current_path_flag.lock().unwrap();
+            *current_path = Some(folder_path.clone());
+        }
+
         // Try to use the local venv python explicitly so it doesn't use the system python
         let python_bin = if std::path::Path::new("../venv/bin/python3").exists() {
             "../venv/bin/python3"
@@ -119,7 +102,6 @@ async fn process_recording(folder_path: String, window: tauri::Window, state: St
             let reader = BufReader::new(stderr);
             for line in reader.lines() {
                 if let Ok(log) = line {
-                    // Send error as a string message
                     println!("Python Error: {}", log);
                 }
             }
@@ -127,8 +109,12 @@ async fn process_recording(folder_path: String, window: tauri::Window, state: St
 
         let status = child_process.wait().unwrap();
 
-        // 3. Release Lock
-        let mut transcribing_flag = transcribing_flag.lock().unwrap();
+        // Release Lock and clear current path
+        {
+            let mut current_path = current_path_flag.lock().unwrap();
+            *current_path = None;
+        }
+        let mut transcribing_flag = is_transcribing_flag.lock().unwrap();
         *transcribing_flag = false;
         
         if status.success() {
@@ -137,7 +123,116 @@ async fn process_recording(folder_path: String, window: tauri::Window, state: St
             window.emit("transcription-progress", "{\"status\": \"error\", \"message\": \"Python script crashed. Check terminal output.\"}").unwrap();
         }
     });
+}
 
+#[tauri::command]
+fn get_sessions(state: State<'_, AppState>, window: tauri::Window) -> Result<Vec<Session>, String> {
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let target_dir = home_dir.join("Downloads").join("CognitoCall");
+
+    if !target_dir.exists() {
+        return Ok(vec![]);
+    }
+
+    let mut sessions = Vec::new();
+
+    if let Ok(entries) = fs::read_dir(target_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            
+            if path.is_dir() {
+                let video_path = path.join("video.webm");
+                
+                if video_path.exists() {
+                    let metadata = entry.metadata().map_err(|e| e.to_string())?;
+                    let created_at = metadata
+                        .created()
+                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
+
+                    let folder_name = entry.file_name().to_string_lossy().to_string();
+                    let mut name = folder_name.clone();
+                    let mut display_name = format_folder_name_to_date(&folder_name);
+
+                    // Read custom name from metadata.json if it exists
+                    let metadata_path = path.join("metadata.json");
+                    if metadata_path.exists() {
+                        if let Ok(content) = fs::read_to_string(&metadata_path) {
+                            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                                if let Some(n) = json.get("display_name").and_then(|v| v.as_str()) {
+                                    display_name = n.to_string();
+                                    name = n.to_string();
+                                } else if let Some(n) = json.get("name").and_then(|v| v.as_str()) {
+                                    display_name = n.to_string();
+                                    name = n.to_string();
+                                }
+                            }
+                        }
+                    }
+
+                    let has_summary = path.join("summary.json").exists();
+                    let currently_processing_path = state.current_transcribing_path.lock().unwrap();
+                    let is_processing = currently_processing_path.as_ref()
+                        .map(|p| p == &path.to_string_lossy().to_string())
+                        .unwrap_or(false);
+
+                    sessions.push(Session {
+                        id: folder_name,
+                        name,
+                        display_name,
+                        path: path.to_string_lossy().to_string(),
+                        video_path: video_path.to_string_lossy().to_string(),
+                        created_at,
+                        is_processing,
+                        has_summary,
+                    });
+                }
+            }
+        }
+    }
+
+    // Sort sessions newest first
+    sessions.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+
+    // "Recent-Only" Startup logic: Auto-run background transcription for only the newest session if it lacks a summary
+    if let Some(newest_session) = sessions.first_mut() {
+        if !newest_session.has_summary {
+            let mut is_transcribing = state.is_transcribing.lock().unwrap();
+            if !*is_transcribing {
+                *is_transcribing = true;
+                newest_session.is_processing = true;
+                
+                // Spawn background transcription
+                spawn_transcription_job(
+                    newest_session.path.clone(),
+                    window,
+                    Arc::clone(&state.is_transcribing),
+                    Arc::clone(&state.current_transcribing_path),
+                );
+            }
+        }
+    }
+
+    Ok(sessions)
+}
+
+#[tauri::command]
+async fn process_recording(folder_path: String, window: tauri::Window, state: State<'_, AppState>) -> Result<(), String> {
+    let mut is_transcribing = state.is_transcribing.lock().unwrap();
+    if *is_transcribing {
+        return Err("A transcription job is already running. Please wait to prevent RAM overload.".into());
+    }
+    *is_transcribing = true;
+    drop(is_transcribing); // Unlock immediately so we don't freeze
+
+    spawn_transcription_job(
+        folder_path,
+        window,
+        Arc::clone(&state.is_transcribing),
+        Arc::clone(&state.current_transcribing_path),
+    );
 
     Ok(())
 }
@@ -150,14 +245,14 @@ struct ActionItem {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct SummaryData {
-    notes: String,
+    notes: serde_json::Value,
     action_items: Vec<ActionItem>,
 }
 
 #[derive(serde::Serialize)]
 struct SessionDetails {
     name: String,
-    notes: String,
+    notes: serde_json::Value,
     action_items: String,
     transcript_exists: bool,
 }
@@ -206,7 +301,9 @@ fn get_session_details(path: String) -> Result<SessionDetails, String> {
     if metadata_path.exists() {
         if let Ok(content) = fs::read_to_string(&metadata_path) {
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                if let Some(n) = json.get("name").and_then(|v| v.as_str()) {
+                if let Some(n) = json.get("display_name").and_then(|v| v.as_str()) {
+                    name = n.to_string();
+                } else if let Some(n) = json.get("name").and_then(|v| v.as_str()) {
                     name = n.to_string();
                 }
             }
@@ -222,17 +319,17 @@ fn get_session_details(path: String) -> Result<SessionDetails, String> {
                 }).collect();
                 (summary.notes, serialized_items.join("\n"))
             } else {
-                ("".to_string(), "".to_string())
+                (serde_json::Value::String("".to_string()), "".to_string())
             }
         } else {
-            ("".to_string(), "".to_string())
+            (serde_json::Value::String("".to_string()), "".to_string())
         }
     } else {
         let notes_path = folder_path.join("notes.txt");
         let notes = if notes_path.exists() {
-            fs::read_to_string(&notes_path).unwrap_or_default()
+            serde_json::Value::String(fs::read_to_string(&notes_path).unwrap_or_default())
         } else {
-            "".to_string()
+            serde_json::Value::String("".to_string())
         };
 
         let action_items_path = folder_path.join("action_items.txt");
@@ -272,7 +369,8 @@ fn rename_session(path: String, new_name: String) -> Result<(), String> {
         }
     }
     
-    data.insert("name".to_string(), serde_json::Value::String(new_name));
+    data.insert("name".to_string(), serde_json::Value::String(new_name.clone()));
+    data.insert("display_name".to_string(), serde_json::Value::String(new_name));
     
     let file = fs::File::create(&metadata_path).map_err(|e| e.to_string())?;
     serde_json::to_writer_pretty(file, &data).map_err(|e| e.to_string())?;
@@ -288,6 +386,12 @@ fn save_session_notes(path: String, notes: String) -> Result<(), String> {
     }
     
     let summary_path = folder_path.join("summary.json");
+    let notes_value = if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&notes) {
+        parsed
+    } else {
+        serde_json::Value::String(notes.clone())
+    };
+
     if summary_path.exists() {
         let mut summary_data = if let Ok(content) = fs::read_to_string(&summary_path) {
             serde_json::from_str::<serde_json::Value>(&content).unwrap_or_default()
@@ -296,7 +400,7 @@ fn save_session_notes(path: String, notes: String) -> Result<(), String> {
         };
         
         if let Some(obj) = summary_data.as_object_mut() {
-            obj.insert("notes".to_string(), serde_json::Value::String(notes));
+            obj.insert("notes".to_string(), notes_value);
         }
         
         let file = fs::File::create(&summary_path).map_err(|e| e.to_string())?;
@@ -337,12 +441,12 @@ fn save_session_action_items(path: String, action_items: String) -> Result<(), S
     }
     Ok(())
 }
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(AppState {
             is_transcribing: Arc::new(Mutex::new(false)),
+            current_transcribing_path: Arc::new(Mutex::new(None)),
         })
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_fs::init())

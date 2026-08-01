@@ -12,6 +12,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+// ─── Live sync when a recording auto-stops while the popup is open ───
+// (If the popup is closed, DOMContentLoaded above already renders the correct
+//  state on next open, since the service worker clears storage on every stop.)
+
+// Primary: the service worker clears `isRecording` on every stop path.
+chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    if (changes.isRecording && changes.isRecording.newValue === undefined && timerInterval) {
+        stopTimer();
+        updateUI('stopped');
+        showStatus('Recording saved! ✅', 'success');
+    }
+});
+
+// Nicety: reason-aware status message pushed by the service worker.
+chrome.runtime.onMessage.addListener((request) => {
+    if (request.target !== 'popup' || request.action !== 'recordingStopped') return;
+    stopTimer();
+    updateUI('stopped');
+    showStatus(stopReasonMessage(request.reason), 'success');
+});
+
+function stopReasonMessage(reason) {
+    switch (reason) {
+        case 'cap': return 'Reached 3-hour limit — recording saved. ✅';
+        case 'tab-closed': return 'Tab closed — recording saved. ✅';
+        case 'capture-ended': return 'Capture ended — recording saved. ✅';
+        default: return 'Recording saved! ✅';
+    }
+}
+
 document.getElementById('startBtn').onclick = async () => {
     try {
         updateUI('starting');

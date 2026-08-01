@@ -2,6 +2,47 @@
 
 ---
 
+## [2026-08-01 13:32 IST]
+
+### 💡 Summary
+Added recording **safety limits** to the Chrome extension: a hard **3-hour cap** and automatic **stop-and-save when the recorded tab is closed**. Every auto-stop flushes and saves the partial recording, resets state exactly like a manual stop, and surfaces a persistent **"REC" toolbar badge** plus a **desktop notification** on auto-stop. Bumped the extension to **v0.7.0**.
+
+### 🚀 Why
+- **Runaway Recordings:** In real-world use, recordings were routinely left running long after meetings ended — one ran for ~24 hours — because it is easy to forget to press Stop, and even closing the meeting tab left the recorder going. These limits make an abandoned recording self-terminating.
+- **3-Hour Hard Cap:** No single recording can exceed 3 hours. Enforced by a `chrome.alarms` timer in the service worker (survives MV3 service-worker termination) with a secondary `setTimeout` inside the always-alive offscreen document as an independent safety net.
+- **Stop-on-Tab-Close:** Closing the recorded tab now stops and saves. Detected primarily via the tab-capture `MediaStreamTrack` `ended` event in the offscreen document (also catches Chrome's "Stop sharing" bar), with `chrome.tabs.onRemoved` as a service-worker backup. The close is matched against the stored recorded tab id, so closing any *other* tab (e.g. the mic-permission tab) is a no-op.
+- **Never Lose a Recording:** All stop triggers (manual, 3h cap, tab close) funnel through a single **idempotent stop-and-save path**, guaranteeing that overlapping events — a tab close fires both the track `ended` and `onRemoved` — still produce exactly one saved session (`video.webm` / `tab.opus` / `mic.opus`) and one notification.
+- **Recording Awareness:** A red **"REC"** badge now sits on the toolbar icon for the entire recording, and an auto-stop raises a desktop notification confirming the save ("reached the 3-hour limit" / "the recorded tab was closed"). The popup timer also resets live if it happens to be open.
+- **Start Hardening:** The service-worker → offscreen start hand-off now retries (up to 3 attempts), and a new recording refuses to begin while a previous one is still saving, preventing overlapping sessions.
+- **Permissions:** Added the non-prompting `alarms` and `notifications` permissions required by the above.
+
+### 📄 Changed Files
+- `packages/extension/manifest.json`
+- `packages/extension/background/service-worker.js`
+- `packages/extension/offscreen/recorder.js`
+- `packages/extension/popup/index.js`
+- `CHANGELOG.md`
+
+> 🤖 Designed, implemented, and verified with **Claude Code** (Anthropic's agentic CLI) — including a mock-`chrome` harness that loads the real service worker to assert the single-stop / single-notification invariants across every stop path.
+
+---
+
+## [2026-08-01 13:30 IST]
+
+### 💡 Summary
+Updated the microphone permission request page copy (`mic.html`) and error status handlers (`mic.js`) in the Chrome extension to match modern Chrome permission prompt options (**"Allow while visiting the site"** vs **"Allow this time"**).
+
+### 🚀 Why
+- **Chrome UX Parity:** Modern Chrome changed its native permission prompt labels to **"Allow while visiting the site"** and **"Allow this time"**.
+- **Clear Guidance on Origin Permissions:** In Chrome Extensions, selecting *"Allow while visiting the site"* grants persistent permission to the extension origin (`chrome-extension://<EXTENSION_ID>`). This unlocks background microphone capture for Cognito Call across all meeting sites (Google Meet, Zoom, Teams, Webex).
+- **Prevent User Confusion:** Replaced obsolete references to "Allow" and "Only this time" in both the permission card warning banner and runtime status messages so users know exactly which button to click.
+
+### 📄 Changed Files
+- `packages/extension/permissions/mic.html`
+- `packages/extension/permissions/mic.js`
+
+---
+
 ## [2026-06-13 19:15 IST]
 
 ### 💡 Summary

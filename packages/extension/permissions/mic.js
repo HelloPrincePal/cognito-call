@@ -44,21 +44,20 @@ grantBtn.onclick = async () => {
         }
 
         if (persistent) {
-            // Full "Allow" — save flag and close
+            // Full "Allow while visiting the site" — save flag and close
             await chrome.storage.local.set({ micPermissionGranted: true });
             showGranted();
             setTimeout(() => window.close(), 1500);
         } else {
-            // User chose "Only this time" — not enough for the offscreen document
+            // User chose "Allow this time" — not enough for the offscreen document
             await chrome.storage.local.remove('micPermissionGranted');
             grantBtn.disabled = false;
             btnLabel.textContent = 'Grant Microphone Access';
             statusEl.className = 'error';
             statusEl.innerHTML = `
-                <strong>⚠️ You selected "Only this time"</strong><br><br>
-                The recording happens in a background process that can't use temporary permissions.
-                Please click the button again and select <strong>"Allow"</strong> (not "Only this time")
-                so the permission persists.
+                <strong>⚠️ You selected "Allow this time"</strong><br><br>
+                Cognito Call records meeting audio in a background process that cannot use temporary permissions.<br><br>
+                Please click the button again and select <strong>"Allow while visiting the site"</strong>.
             `;
         }
     } catch (err) {
@@ -67,7 +66,7 @@ grantBtn.onclick = async () => {
 
         if (err.name === 'NotAllowedError') {
             statusEl.className = 'error';
-            statusEl.textContent = 'Permission denied. Please click the button and select "Allow" in Chrome\'s prompt.';
+            statusEl.textContent = 'Permission denied. Please click the button and select "Allow while visiting the site" in Chrome\'s prompt.';
         } else {
             statusEl.className = 'error';
             statusEl.textContent = 'Error: ' + err.message;

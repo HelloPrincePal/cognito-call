@@ -1,5 +1,5 @@
 # 🚀 Cognito Call
-![Version 0.6.0](https://img.shields.io/badge/version-0.6.0-blue)
+![Version 0.7.0](https://img.shields.io/badge/version-0.7.0-blue)
 
 **Local-first meeting recorder.** Record Chrome tabs (Meet/Zoom/Teams) → save `.webm` locally → AI transcription, summaries, and action checklists.
 
@@ -8,9 +8,9 @@ No cloud. No bots joining calls. No data leaks.
 ## 📦 Cognito Call Extension
 The core recorder is a lightweight Chrome extension that works 100% offline.
 
-### 📥 Download Latest (v0.6.0)
+### 📥 Download Latest (v0.7.0)
 You can download the extension as a ZIP file directly from our GitHub Releases:
-*   **Download:** [cognito-call-v0.6.0.zip](https://github.com/HelloPrincePal/cognito-call/releases/latest)
+*   **Download:** [cognito-call-v0.7.0.zip](https://github.com/HelloPrincePal/cognito-call/releases/latest)
 *   **Next Step:** Follow the [Installation Guide](#-installation-guide) below.
 
 ### ✨ Core Extension Features

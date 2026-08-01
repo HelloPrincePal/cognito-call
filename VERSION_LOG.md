@@ -15,6 +15,7 @@ We follow the **X.Y.Z** semantic versioning format:
 
 | Version | Date | Summary | Key Impact |
 | :--- | :--- | :--- | :--- |
+| **v0.7.0** | 2026-08-01 | **Recording Safety Limits & Mic Copy Update** | 3-hour cap, tab-close auto-stop, toolbar REC badge, desktop notifications, and Chrome UX copy updates |
 | **v0.6.0** | 2026-06-13 | **Apple-Native MLX Migration** | Memory-efficient mlx-whisper backend + aggressive memory releases |
 | **v0.5.1** | 2026-05-30 | **Diagnostic Logging & Light Mode Refactor** | Stable Python logger (psutil) + premium light mode dashboard & segment exporters |
 | **v0.5.0** | 2026-05-19 | **Local AI Transcription Pipeline** | 100% offline WhisperX + Clustering pipeline |
@@ -27,6 +28,18 @@ We follow the **X.Y.Z** semantic versioning format:
 | **v0.2.0** | 2026-03-15 | **Architecture & Audio Overhaul** | Complete re-architecture & Mic mixing |
 
 | **v0.1.0** | 2026-03-15 | **Initial Prototype** | Basic tab recording proof-of-concept |
+
+---
+
+## [v0.7.0] — 2026-08-01
+**Git Push Action:** "feat: extension recording safety limits, tab-close auto-stop, toolbar REC badge, and permission copy parity"
+
+### 🚀 Implementation
+- **3-Hour Hard Cap:** Enforced max recording duration via `chrome.alarms` in service worker + fallback `setTimeout` in offscreen recorder.
+- **Stop-on-Tab-Close:** Automatically flushes and saves recordings when the recorded tab is closed (via track `ended` + `tabs.onRemoved`).
+- **Canonical Idempotent Stop Path:** All stop triggers funnel through a single stop-and-save execution path with single-fire notification guards.
+- **Visual & Desktop Feedback:** Added a active red "REC" toolbar badge during recording and desktop notifications on auto-stops.
+- **Permission UX Parity:** Updated `mic.html` and `mic.js` to match Chrome's "Allow while visiting the site" permission wording.
 
 ---
 

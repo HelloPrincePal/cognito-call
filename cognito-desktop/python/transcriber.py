@@ -107,9 +107,24 @@ def generate_intelligence(transcript_text, folder_path):
         model, tokenizer = mlx_lm.load(model_id)
         
         system_prompt = (
-            "You are an executive assistant. Read the following meeting transcript. Provide a 1-paragraph summary of the meeting. "
-            "Then, provide a bulleted list of any action items or tasks promised during the meeting. "
-            "Format your output strictly as a JSON object with keys 'notes' (string) and 'action_items' (array of strings)."
+            "You are an expert executive assistant. Analyze the following meeting transcript. You must extract three things:\n"
+            "1. A 3-to-5 word title for the meeting under the key 'title'.\n"
+            "2. An 'executive_summary': A brief, 2-3 sentence overview of the call's main purpose.\n"
+            "3. A 'detailed_summary': Break the meeting down chronologically into parts (e.g., Beginning, Middle, Conclusion). For each part, summarize what was discussed.\n"
+            "4. 'action_items': A list of any tasks, promises, or next steps mentioned.\n"
+            "You MUST format your entire response strictly as a JSON object matching this schema:\n"
+            "{\n"
+            "  \"title\": \"3-to-5 word title\",\n"
+            "  \"notes\": {\n"
+            "    \"executive_summary\": \"...\",\n"
+            "    \"detailed_summary\": [\n"
+            "      {\"phase\": \"Beginning/Middle/Conclusion\", \"content\": \"...\"}\n"
+            "    ]\n"
+            "  },\n"
+            "  \"action_items\": [\n"
+            "    {\"text\": \"...\", \"done\": false}\n"
+            "  ]\n"
+            "}"
         )
         
         messages = [
@@ -149,6 +164,10 @@ def generate_intelligence(transcript_text, folder_path):
             clean_response_fixed = clean_response.replace(',\n}', '\n}').replace(',\n  }', '\n  }')
             intelligence_data = json.loads(clean_response_fixed)
         
+        title = intelligence_data.get("title", "").strip()
+        if not title:
+            title = "Meeting Summary"
+            
         notes = intelligence_data.get("notes", "")
         raw_items = intelligence_data.get("action_items", [])
         
@@ -165,6 +184,14 @@ def generate_intelligence(transcript_text, folder_path):
                     "done": False
                 })
                 
+        # Save metadata.json for naming
+        metadata_path = os.path.join(folder_path, "metadata.json")
+        with open(metadata_path, "w", encoding="utf-8") as f:
+            json.dump({
+                "name": title,
+                "display_name": title
+            }, f, indent=2, ensure_ascii=False)
+            
         summary_path = os.path.join(folder_path, "summary.json")
         with open(summary_path, "w", encoding="utf-8") as f:
             json.dump({
@@ -172,7 +199,7 @@ def generate_intelligence(transcript_text, folder_path):
                 "action_items": action_items
             }, f, indent=2, ensure_ascii=False)
             
-        log_diagnostic(folder_path, "Intelligence summary successfully saved to summary.json")
+        log_diagnostic(folder_path, "Intelligence summary and metadata successfully saved")
         
     except Exception as e:
         log_diagnostic(folder_path, f"[ERROR] Intelligence generation failed: {e}")

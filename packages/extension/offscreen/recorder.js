@@ -12,16 +12,22 @@ let audioContext = null;
 let workspacePrefix = null;
 let tabAudioOutput = null;
 
+// ─── Auto-stop / idempotency state ───
+let recordingState = 'idle'; // 'idle' | 'recording' | 'stopping'
+let capTimeoutId = null;      // secondary 3h safety net (independent of the SW alarm)
+let saving = false;           // guards saveRecordings against a double-run
+let stopReason = null;        // reason threaded to the recordingSaved message
+
 // ─── Message Listener ───
 // Only handle messages targeted at 'offscreen-doc' (from service worker)
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.target !== 'offscreen-doc') return false;
 
     if (request.action === 'startRecording') {
-        startRecording(request.streamId).then(sendResponse);
+        startRecording(request.streamId, request.capMs).then(sendResponse);
         return true; // keep channel open for async response
     } else if (request.action === 'stopRecording') {
-        stopRecording().then(sendResponse);
+        stopRecording(request.reason).then(sendResponse);
         return true;
     }
 });
@@ -36,8 +42,11 @@ function generateWorkspacePrefix() {
     return `CognitoCall/${date}_${time}/`;
 }
 
-async function startRecording(streamId) {
+async function startRecording(streamId, capMs) {
     try {
+        if (recordingState === 'stopping') {
+            return { success: false, error: 'Previous recording is still saving. Please try again.' };
+        }
         // ── Clean up any previous session ──
         cleanupStreams();
 
@@ -176,15 +185,48 @@ async function startRecording(streamId) {
         if (tabAudioRecorder) tabAudioRecorder.start(1000);
         if (micAudioRecorder) micAudioRecorder.start(1000);
 
+        // ── 7. Arm safety limits (only after a successful start) ──
+        recordingState = 'recording';
+        saving = false;
+        stopReason = null;
+
+        // Secondary 3-hour cap: fires even if the service-worker alarm never woke the worker.
+        if (typeof capMs === 'number' && capMs > 0) {
+            capTimeoutId = setTimeout(() => {
+                console.warn('[Offscreen] 3-hour cap reached (secondary timer) — stopping.');
+                stopRecording('cap');
+            }, capMs);
+        }
+
+        // Stop-on-tab-close: the tab-capture tracks end when the recorded tab is closed
+        // (or the user clicks Chrome's "Stop sharing" bar). Bind ONLY to tab-capture
+        // tracks — never the mic, so unplugging a mic can't stop the recording.
+        tabStream.getVideoTracks().forEach(t => t.addEventListener('ended', onCaptureEnded));
+        tabStream.getAudioTracks().forEach(t => t.addEventListener('ended', onCaptureEnded));
+
         console.log('[Offscreen] Recording started in workspace:', workspacePrefix);
         return { success: true, recordingId: workspacePrefix };
     } catch (error) {
         console.error('[Offscreen] startRecording error:', error);
+        recordingState = 'idle';
+        cleanupStreams();
         return { success: false, error: error.message };
     }
 }
 
+// Fired when a tab-capture track ends (tab closed / crashed / "Stop sharing" clicked).
+function onCaptureEnded() {
+    if (recordingState !== 'recording') return;
+    console.log('[Offscreen] Tab capture ended — stopping and saving.');
+    stopRecording('capture-ended');
+}
+
 function cleanupStreams() {
+    if (capTimeoutId) {
+        clearTimeout(capTimeoutId);
+        capTimeoutId = null;
+    }
+
     if (videoRecorder && videoRecorder.state === 'recording') videoRecorder.stop();
     if (tabAudioRecorder && tabAudioRecorder.state === 'recording') tabAudioRecorder.stop();
     if (micAudioRecorder && micAudioRecorder.state === 'recording') micAudioRecorder.stop();
@@ -209,11 +251,34 @@ function cleanupStreams() {
     }
 }
 
-async function stopRecording() {
+// Canonical offscreen stop. Idempotent: overlapping triggers (SW stop message,
+// track onended, secondary cap timeout) collapse into a single stop + save.
+async function stopRecording(reason) {
     try {
-        if (videoRecorder && videoRecorder.state === 'recording') videoRecorder.stop();
-        if (tabAudioRecorder && tabAudioRecorder.state === 'recording') tabAudioRecorder.stop();
-        if (micAudioRecorder && micAudioRecorder.state === 'recording') micAudioRecorder.stop();
+        if (recordingState !== 'recording') {
+            return { success: true, alreadyStopped: true };
+        }
+        recordingState = 'stopping';
+        stopReason = reason || 'manual';
+
+        if (capTimeoutId) {
+            clearTimeout(capTimeoutId);
+            capTimeoutId = null;
+        }
+
+        // Stop recorders first so buffered chunks flush through onstop -> checkDone -> saveRecordings,
+        // THEN tear down the streams. This preserves the partial recording even on a tab close.
+        if (videoRecorder && videoRecorder.state !== 'inactive') videoRecorder.stop();
+        if (tabAudioRecorder && tabAudioRecorder.state !== 'inactive') tabAudioRecorder.stop();
+        if (micAudioRecorder && micAudioRecorder.state !== 'inactive') micAudioRecorder.stop();
+
+        // Safety net fallback: if checkDone doesn't trigger saveRecordings within 1.5s, force saveRecordings
+        setTimeout(() => {
+            if (!saving && recordingState === 'stopping') {
+                console.warn('[Offscreen] Safety fallback triggered: forcing saveRecordings.');
+                saveRecordings();
+            }
+        }, 1500);
 
         if (tabAudioOutput) {
             tabAudioOutput.pause();
@@ -234,7 +299,7 @@ async function stopRecording() {
             audioContext.close().catch(() => { });
             audioContext = null;
         }
-        console.log('[Offscreen] Recording stopped');
+        console.log(`[Offscreen] Recording stopped (reason: ${stopReason})`);
         return { success: true };
     } catch (error) {
         console.error('[Offscreen] stopRecording error:', error);
@@ -243,8 +308,12 @@ async function stopRecording() {
 }
 
 async function saveRecordings() {
+    if (saving) return; // guard against a double-run if all recorders somehow report twice
+    saving = true;
+
     let totalSizeMB = 0;
     const prefix = workspacePrefix || "CognitoCall/";
+    const reason = stopReason || 'saved';
     let filesProcessed = 0;
     let filesToProcess = 0;
 
@@ -260,13 +329,16 @@ async function saveRecordings() {
         console.log(`[Offscreen] Saving ${fullFilename} (${sizeMB} MB)`);
 
         const blobUrl = URL.createObjectURL(blob);
-        
+
         chrome.runtime.sendMessage({
             target: 'service-worker',
             action: 'downloadRecording',
             dataUrl: blobUrl,
             filename: fullFilename
         });
+
+        // Revoke Blob URL after download dispatch to release memory
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 
         filesProcessed++;
         checkAllProcessed();
@@ -278,8 +350,10 @@ async function saveRecordings() {
                 target: 'service-worker',
                 action: 'recordingSaved',
                 filename: prefix,
-                sizeMB: totalSizeMB.toFixed(2)
+                sizeMB: totalSizeMB.toFixed(2),
+                reason
             });
+            resetAfterSave();
         }
     };
 
@@ -289,10 +363,24 @@ async function saveRecordings() {
 
     if (filesToProcess === 0) {
         console.warn('[Offscreen] No recorded chunks to save.');
+        // Still notify the SW so it can reset its state / notify the user.
+        chrome.runtime.sendMessage({
+            target: 'service-worker',
+            action: 'recordingSaved',
+            filename: prefix,
+            sizeMB: "0.00",
+            reason
+        });
+        resetAfterSave();
     }
+}
 
-    // Clean up
+function resetAfterSave() {
+    // Clean up buffers and return to idle so the next recording starts fresh.
     videoChunks = [];
     tabAudioChunks = [];
     micAudioChunks = [];
+    recordingState = 'idle';
+    saving = false;
+    stopReason = null;
 }

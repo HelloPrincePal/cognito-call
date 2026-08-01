@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { FileText, BookOpen, ListTodo, Save, Plus, Trash2, Download } from 'lucide-react';
+import { FileText, ListTodo, Save, Plus, Trash2, Download } from 'lucide-react';
 
 // --- Type Definitions ---
 interface Word { word: string; start: number; end: number; }
@@ -10,7 +10,7 @@ interface Transcript { segments: Segment[]; }
 
 interface SessionDetails {
   name: string;
-  notes: string;
+  notes: any;
   action_items: string;
   transcript_exists: boolean;
 }
@@ -43,7 +43,9 @@ export default function KaraokePlayer({
   const [activeTab, setActiveTab] = useState<'transcript' | 'notes' | 'action_items'>('transcript');
 
   // Details State (Notes & Tasks)
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState<any>("");
+  const [editorText, setEditorText] = useState("");
+  const [isEditingRawNotes, setIsEditingRawNotes] = useState(false);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [newTaskText, setNewTaskText] = useState("");
   const [isSavingNotes, setIsSavingNotes] = useState(false);
@@ -70,8 +72,18 @@ export default function KaraokePlayer({
     try {
       const details = await invoke<SessionDetails>('get_session_details', { path: folderPath });
       setNotes(details.notes || "");
+      if (details.notes) {
+        if (typeof details.notes === 'string') {
+          setEditorText(details.notes);
+        } else {
+          setEditorText(JSON.stringify(details.notes, null, 2));
+        }
+      } else {
+        setEditorText("");
+      }
       setTasks(parseActionItems(details.action_items));
       setHasUnsavedNotes(false);
+      setIsEditingRawNotes(false);
     } catch (error) {
       console.error("Failed to fetch session details", error);
     }
@@ -103,17 +115,6 @@ export default function KaraokePlayer({
     return () => { unlisten.then(f => f()); };
   }, [transcriptUrl, folderPath]);
 
-  // 4. Trigger Rust Command
-  const startTranscription = async () => {
-    try {
-      setIsProcessing(true);
-      setStatusMessage("Spawning transcription process...");
-      await invoke('process_recording', { folderPath });
-    } catch (error) {
-      alert(error);
-      setIsProcessing(false);
-    }
-  };
 
   // 5. Karaoke Click-to-Jump
   const jumpToTime = (time: number) => {
@@ -150,8 +151,17 @@ export default function KaraokePlayer({
   const handleSaveNotes = async () => {
     try {
       setIsSavingNotes(true);
-      await invoke('save_session_notes', { path: folderPath, notes });
+      await invoke('save_session_notes', { path: folderPath, notes: editorText });
+      
+      try {
+        const parsed = JSON.parse(editorText);
+        setNotes(parsed);
+      } catch (e) {
+        setNotes(editorText);
+      }
+      
       setHasUnsavedNotes(false);
+      setIsEditingRawNotes(false);
     } catch (e) {
       alert("Failed to save notes: " + e);
     } finally {
@@ -234,7 +244,7 @@ export default function KaraokePlayer({
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-[#F9FAFB]">
+    <div className="flex flex-col h-full overflow-hidden bg-white">
       {/* Top Section: Video Player */}
       <div className="flex-shrink-0 w-full bg-white border-b border-gray-200 p-4 flex justify-center items-center">
         <div className="w-full max-w-2xl aspect-video bg-black rounded-xl overflow-hidden shadow-sm relative group">
@@ -245,48 +255,32 @@ export default function KaraokePlayer({
             className="w-full h-full object-contain"
             onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime || 0)}
           />
-          
-          {!transcript && !isProcessing && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm transition-all p-6 text-center">
-              <p className="text-white font-semibold mb-4 text-sm max-w-xs select-none">
-                No transcript is available for this recording.
-              </p>
-              <button 
-                onClick={startTranscription} 
-                className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg shadow-md active:scale-[0.98] transition-all flex items-center gap-2 cursor-pointer border-none"
-              >
-                Generate AI Transcript & Diarization
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
       {/* Bottom Section: Tabs and their Content */}
-      <div className="flex-1 min-h-0 flex flex-col p-6 bg-[#F9FAFB]">
+      <div className="flex-1 min-h-0 flex flex-col p-6 bg-white">
         {/* Navigation Tabs & Actions */}
-        <div className="flex border-b border-gray-200 justify-between items-center mb-4 flex-shrink-0 select-none">
+        <div className="flex border-b border-gray-150 justify-between items-center mb-4 flex-shrink-0 select-none">
           <div className="flex gap-6">
             <button
               onClick={() => setActiveTab('transcript')}
-              className={`pb-2.5 text-sm font-semibold tracking-wide border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+              className={`pb-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
                 activeTab === 'transcript'
-                  ? 'border-purple-600 text-purple-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-900'
+                  ? 'border-[#335CFF] text-[#101828]'
+                  : 'border-transparent text-[#475467] hover:text-[#101828]'
               }`}
             >
-              <FileText className="w-4 h-4" />
               Transcript
             </button>
             <button
               onClick={() => setActiveTab('notes')}
-              className={`pb-2.5 text-sm font-semibold tracking-wide border-b-2 transition-all flex items-center gap-2 cursor-pointer relative ${
+              className={`pb-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer relative ${
                 activeTab === 'notes'
-                  ? 'border-purple-600 text-purple-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-900'
+                  ? 'border-[#335CFF] text-[#101828]'
+                  : 'border-transparent text-[#475467] hover:text-[#101828]'
               }`}
             >
-              <BookOpen className="w-4 h-4" />
               Notes
               {hasUnsavedNotes && (
                 <span className="absolute top-1 right-[-6px] w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
@@ -294,14 +288,13 @@ export default function KaraokePlayer({
             </button>
             <button
               onClick={() => setActiveTab('action_items')}
-              className={`pb-2.5 text-sm font-semibold tracking-wide border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+              className={`pb-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
                 activeTab === 'action_items'
-                  ? 'border-purple-600 text-purple-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-900'
+                  ? 'border-[#335CFF] text-[#101828]'
+                  : 'border-transparent text-[#475467] hover:text-[#101828]'
               }`}
             >
-              <ListTodo className="w-4 h-4" />
-              Action Items {tasks.length > 0 && `(${tasks.filter(t => !t.done).length})`}
+              Action Items {tasks.length > 0 && `(${tasks.length})`}
             </button>
           </div>
 
@@ -331,7 +324,7 @@ export default function KaraokePlayer({
         {/* Tab Content (Scrollable) */}
         <div className="flex-1 min-h-0 overflow-y-auto">
           {activeTab === 'transcript' && (
-            <div className="h-full bg-[#F9FAFB] rounded-xl">
+            <div className="h-full bg-white rounded-xl">
               {isProcessing && (
                 <div className="flex flex-col items-center justify-center h-full text-center p-6 text-purple-600 select-none py-12">
                   <div className="w-10 h-10 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -403,33 +396,81 @@ export default function KaraokePlayer({
           )}
 
           {activeTab === 'notes' && (
-            <div className="h-full flex flex-col bg-white rounded-xl border border-gray-100 p-6 shadow-sm min-h-[300px]">
+            <div className="h-full flex flex-col bg-white p-2 min-h-[300px]">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
-                <span className="text-xs font-semibold text-gray-500 select-none">
-                  {hasUnsavedNotes ? "⚠️ Unsaved changes" : "✓ Saved offline"}
-                </span>
-                <button
-                  onClick={handleSaveNotes}
-                  disabled={isSavingNotes || !hasUnsavedNotes}
-                  className={`text-xs font-semibold px-4 py-1.5 rounded-md transition-all flex items-center gap-1.5 cursor-pointer border-none ${
-                    hasUnsavedNotes
-                      ? 'bg-purple-600 text-white hover:bg-purple-700 shadow-sm'
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  }`}
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  {isSavingNotes ? "Saving..." : "Save Notes"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-gray-500 select-none">
+                    {hasUnsavedNotes ? "⚠️ Unsaved changes" : "✓ Saved offline"}
+                  </span>
+                  {notes && typeof notes === 'object' && notes.executive_summary && (
+                    <button
+                      onClick={() => setIsEditingRawNotes(!isEditingRawNotes)}
+                      className="text-xs text-[#335CFF] hover:text-[#335CFF]/80 font-semibold cursor-pointer border-none bg-transparent"
+                    >
+                      {isEditingRawNotes ? "View Summary" : "Edit Notes"}
+                    </button>
+                  )}
+                </div>
+                {(isEditingRawNotes || !(notes && typeof notes === 'object' && notes.executive_summary)) && (
+                  <button
+                    onClick={handleSaveNotes}
+                    disabled={isSavingNotes || !hasUnsavedNotes}
+                    className={`text-xs font-semibold px-4 py-1.5 rounded-md transition-all flex items-center gap-1.5 cursor-pointer border-none ${
+                      hasUnsavedNotes
+                        ? 'bg-[#335CFF] text-white hover:bg-[#335CFF]/90 shadow-sm'
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    {isSavingNotes ? "Saving..." : "Save Notes"}
+                  </button>
+                )}
               </div>
-              <textarea
-                value={notes}
-                onChange={(e) => {
-                  setNotes(e.target.value);
-                  setHasUnsavedNotes(true);
-                }}
-                className="flex-1 w-full bg-gray-50/30 border border-gray-150 rounded-lg p-4 text-sm text-gray-800 focus:outline-none focus:border-purple-600 focus:bg-white leading-relaxed resize-none transition-all outline-none"
-                placeholder="Start typing meeting notes..."
-              />
+              
+              {notes && typeof notes === 'object' && notes.executive_summary && !isEditingRawNotes ? (
+                <div className="flex-1 space-y-6 overflow-y-auto pr-1">
+                  {/* Executive Summary */}
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-3 select-none">
+                      Executive Summary
+                    </h3>
+                    <p className="text-sm text-gray-750 leading-relaxed font-normal">
+                      {notes.executive_summary}
+                    </p>
+                  </div>
+
+                  {/* Detailed Summary Chronology */}
+                  {notes.detailed_summary && Array.isArray(notes.detailed_summary) && (
+                    <div className="space-y-4 pt-2">
+                      <h3 className="text-xl font-bold text-gray-900 mb-3 select-none">
+                        Full Summary
+                      </h3>
+                      <div className="space-y-6">
+                        {notes.detailed_summary.map((part: any, index: number) => (
+                          <div key={index} className="space-y-1.5">
+                            <h4 className="text-sm font-bold text-gray-900">
+                              {part.phase}
+                            </h4>
+                            <p className="text-sm text-gray-600 leading-relaxed">
+                              {part.content}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <textarea
+                  value={editorText}
+                  onChange={(e) => {
+                    setEditorText(e.target.value);
+                    setHasUnsavedNotes(true);
+                  }}
+                  className="flex-1 w-full bg-gray-50/30 border border-gray-150 rounded-lg p-4 text-sm text-gray-800 focus:outline-none focus:border-[#335CFF] focus:bg-white leading-relaxed resize-none transition-all outline-none"
+                  placeholder="Start typing meeting notes..."
+                />
+              )}
             </div>
           )}
 
