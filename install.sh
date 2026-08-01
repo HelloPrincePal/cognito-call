@@ -63,7 +63,7 @@ chmod +x "$INSTALL_DIR/$APP_NAME/Contents/MacOS/cognito-desktop" || true
 echo "🔹 5. Setting up local AI environment (~/.cognitocall)..."
 mkdir -p "$DATA_DIR/models"
 mkdir -p "$DATA_DIR/python"
-cp -f cognito-desktop/python/transcriber.py "$DATA_DIR/python/transcriber.py" 2>/dev/null || true
+curl -fsSL "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/cognito-desktop/python/transcriber.py" -o "$DATA_DIR/python/transcriber.py" 2>/dev/null || cp -f cognito-desktop/python/transcriber.py "$DATA_DIR/python/transcriber.py" 2>/dev/null || true
 
 if command -v python3 &>/dev/null; then
   if [ ! -d "$DATA_DIR/venv" ]; then

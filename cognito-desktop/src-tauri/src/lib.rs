@@ -109,18 +109,33 @@ fn spawn_transcription_job(
             python_bin_path
         };
 
-        // Locate transcriber.py dynamically
+        // Locate transcriber.py dynamically (user home, app bundle resources, or local dev workspace)
+        let exe_dir = std::env::current_exe().ok().and_then(|p| p.parent().map(|p| p.to_path_buf()));
+        let app_resources_transcriber = exe_dir.as_ref().map(|p| p.join("../Resources/python/transcriber.py"));
         let user_transcriber = home_dir.as_ref().map(|h| h.join(".cognitocall").join("python").join("transcriber.py"));
         let local_transcriber = std::path::PathBuf::from("../python/transcriber.py");
-        let bundled_transcriber = std::path::PathBuf::from("python/transcriber.py");
 
         let transcriber_script = if let Some(ref p) = user_transcriber {
             if p.exists() {
                 p.clone()
+            } else if let Some(ref res_p) = app_resources_transcriber {
+                if res_p.exists() {
+                    res_p.clone()
+                } else if local_transcriber.exists() {
+                    local_transcriber
+                } else {
+                    std::path::PathBuf::from("../python/transcriber.py")
+                }
             } else if local_transcriber.exists() {
                 local_transcriber
-            } else if bundled_transcriber.exists() {
-                bundled_transcriber
+            } else {
+                std::path::PathBuf::from("../python/transcriber.py")
+            }
+        } else if let Some(ref res_p) = app_resources_transcriber {
+            if res_p.exists() {
+                res_p.clone()
+            } else if local_transcriber.exists() {
+                local_transcriber
             } else {
                 std::path::PathBuf::from("../python/transcriber.py")
             }
