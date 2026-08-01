@@ -6,8 +6,6 @@ on:
       - 'v*'
     branches:
       - main
-    paths:
-      - 'packages/extension/manifest.json'
   workflow_dispatch:
 
 permissions:
@@ -59,14 +57,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
       - name: Install Rust Stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install Dependencies
+      - name: Install Desktop Dependencies
         run: |
-          npm ci
+          cd cognito-desktop
+          npm install
 
       - name: Build Tauri Desktop App
         uses: tauri-apps/tauri-action@v0
