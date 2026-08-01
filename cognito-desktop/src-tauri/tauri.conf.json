@@ -12,9 +12,13 @@
   "app": {
     "windows": [
       {
-        "title": "cognito-desktop",
-        "width": 800,
-        "height": 600
+        "label": "main",
+        "title": "Cognito Call",
+        "width": 1440,
+        "height": 900,
+        "center": true,
+        "minWidth": 960,
+        "minHeight": 600
       }
     ],
     "security": {

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { FileText, ListTodo, Save, Plus, Trash2, Download } from 'lucide-react';
+import { FileText, ListTodo, Save, Plus, Trash2, Download, Maximize2, Minimize2 } from 'lucide-react';
 
 // --- Type Definitions ---
 interface Word { word: string; start: number; end: number; }
@@ -32,8 +32,10 @@ export default function KaraokePlayer({
   onTasksUpdated?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   // Processing State
   const [isProcessing, setIsProcessing] = useState(false);
@@ -243,11 +245,35 @@ export default function KaraokePlayer({
     URL.revokeObjectURL(url);
   };
 
+  // 4. Fullscreen State Sync
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(console.error);
+    } else {
+      containerRef.current.requestFullscreen().catch(console.error);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full overflow-hidden bg-white">
       {/* Top Section: Video Player */}
       <div className="flex-shrink-0 w-full bg-white border-b border-gray-200 p-4 flex justify-center items-center">
-        <div className="w-full max-w-2xl aspect-video bg-black rounded-xl overflow-hidden shadow-sm relative group">
+        <div 
+          ref={containerRef}
+          className="w-full max-w-2xl aspect-video bg-black rounded-xl overflow-hidden shadow-sm relative group flex items-center justify-center"
+          onDoubleClick={toggleFullscreen}
+        >
           <video 
             ref={videoRef} 
             src={videoUrl} 
@@ -255,6 +281,25 @@ export default function KaraokePlayer({
             className="w-full h-full object-contain"
             onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime || 0)}
           />
+
+          {/* Floating Fullscreen Toggle Button */}
+          <button
+            onClick={toggleFullscreen}
+            title={isFullscreen ? "Exit Fullscreen" : "Full Screen"}
+            className="absolute top-3 right-3 px-3 py-1.5 rounded-lg bg-black/70 hover:bg-black/90 backdrop-blur-md text-white border border-white/20 transition-all opacity-0 group-hover:opacity-100 z-10 cursor-pointer shadow-lg flex items-center gap-1.5 text-xs font-semibold select-none"
+          >
+            {isFullscreen ? (
+              <>
+                <Minimize2 className="w-3.5 h-3.5" />
+                <span>Exit Fullscreen</span>
+              </>
+            ) : (
+              <>
+                <Maximize2 className="w-3.5 h-3.5" />
+                <span>Full Screen</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
@@ -370,22 +415,28 @@ export default function KaraokePlayer({
                         </div>
                         
                         <p className="text-sm leading-relaxed text-gray-750">
-                          {segment.words.map((w, idx) => {
-                            const isWordActive = currentTime >= w.start && currentTime <= w.end;
-                            return (
-                              <span 
-                                key={idx} 
-                                onClick={(e) => { e.stopPropagation(); jumpToTime(w.start); }}
-                                className={`mr-1 px-0.5 rounded transition-all cursor-pointer ${
-                                  isWordActive 
-                                    ? 'bg-purple-100 text-purple-700 font-medium' 
-                                    : 'text-gray-800 hover:text-purple-650 hover:bg-purple-50/50'
-                                }`}
-                              >
-                                {w.word}
-                              </span>
-                            )
-                          })}
+                          {segment.words && segment.words.length > 0 ? (
+                            segment.words.map((w, idx) => {
+                              const isWordActive = currentTime >= w.start && currentTime <= w.end;
+                              return (
+                                <span 
+                                  key={idx} 
+                                  onClick={(e) => { e.stopPropagation(); jumpToTime(w.start); }}
+                                  className={`mr-1 px-0.5 rounded transition-all cursor-pointer ${
+                                    isWordActive 
+                                      ? 'bg-purple-100 text-purple-700 font-medium' 
+                                      : 'text-gray-800 hover:text-purple-650 hover:bg-purple-50/50'
+                                  }`}
+                                >
+                                  {w.word}
+                                </span>
+                              );
+                            })
+                          ) : (
+                            <span className={isSegmentActive ? "text-purple-950 font-medium" : "text-gray-800"}>
+                              {segment.text}
+                            </span>
+                          )}
                         </p>
                       </div>
                     )

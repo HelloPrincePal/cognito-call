@@ -2,11 +2,12 @@ use std::fs;
 use std::sync::{Arc, Mutex};
 use std::process::{Command, Stdio};
 use std::io::{BufRead, BufReader};
-use tauri::{State, Emitter};
+use tauri::{State, Emitter, Manager};
 
 struct AppState {
     is_transcribing: Arc<Mutex<bool>>,
     current_transcribing_path: Arc<Mutex<Option<String>>>,
+    active_pid: Arc<Mutex<Option<u32>>>,
 }
 
 #[derive(serde::Serialize)]
@@ -60,10 +61,12 @@ fn format_folder_name_to_date(folder_name: &str) -> String {
 }
 
 fn spawn_transcription_job(
-    folder_path: String, 
+    folder_path: String,
+    user_name: Option<String>,
     window: tauri::Window, 
     is_transcribing_flag: Arc<Mutex<bool>>, 
-    current_path_flag: Arc<Mutex<Option<String>>>
+    current_path_flag: Arc<Mutex<Option<String>>>,
+    active_pid_flag: Arc<Mutex<Option<u32>>>,
 ) {
     std::thread::spawn(move || {
         // Set the current path undergoing transcription
@@ -72,24 +75,61 @@ fn spawn_transcription_job(
             *current_path = Some(folder_path.clone());
         }
 
-        // Try to use the local venv python explicitly so it doesn't use the system python
-        let python_bin = if std::path::Path::new("../venv/bin/python3").exists() {
-            "../venv/bin/python3"
+        // Use cognito-assistant process name so it displays clearly in macOS Activity Monitor / Task Manager
+        let python_bin_path = if std::path::Path::new("../venv/bin/python3").exists() {
+            std::path::PathBuf::from("../venv/bin/python3")
         } else {
-            "python3"
+            std::path::PathBuf::from("python3")
         };
 
-        let mut child_process = Command::new(python_bin)
+        let helper_bin = if let Some(parent) = python_bin_path.parent() {
+            let symlink_path = parent.join("cognito-assistant");
+            if !symlink_path.exists() {
+                #[cfg(unix)]
+                let _ = std::os::unix::fs::symlink(&python_bin_path, &symlink_path);
+            }
+            if symlink_path.exists() {
+                symlink_path
+            } else {
+                python_bin_path
+            }
+        } else {
+            python_bin_path
+        };
+
+        let u_name = user_name.unwrap_or_else(|| "Me".to_string());
+
+        let mut child_process = match Command::new(&helper_bin)
             .arg("../python/transcriber.py") 
             .arg(&folder_path)
+            .arg("--user-name")
+            .arg(&u_name)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .spawn()
-            .expect("Failed to start Python transcriber sidecar");
+            .spawn() {
+                Ok(child) => child,
+                Err(e) => {
+                    println!("Failed to start Python sidecar: {}", e);
+                    let mut is_t = is_transcribing_flag.lock().unwrap();
+                    *is_t = false;
+                    let mut cur = current_path_flag.lock().unwrap();
+                    *cur = None;
+                    return;
+                }
+            };
+
+        let pid = child_process.id();
+        {
+            let mut p = active_pid_flag.lock().unwrap();
+            *p = Some(pid);
+        }
+
+        let stdout = child_process.stdout.take();
+        let stderr = child_process.stderr.take();
 
         // Stream stdout lines to the frontend
-        if let Some(stdout) = child_process.stdout.take() {
-            let reader = BufReader::new(stdout);
+        if let Some(out) = stdout {
+            let reader = BufReader::new(out);
             for line in reader.lines() {
                 if let Ok(log) = line {
                     window.emit("transcription-progress", log).unwrap();
@@ -98,8 +138,8 @@ fn spawn_transcription_job(
         }
         
         // Stream stderr lines in case of crash
-        if let Some(stderr) = child_process.stderr.take() {
-            let reader = BufReader::new(stderr);
+        if let Some(err) = stderr {
+            let reader = BufReader::new(err);
             for line in reader.lines() {
                 if let Ok(log) = line {
                     println!("Python Error: {}", log);
@@ -107,26 +147,32 @@ fn spawn_transcription_job(
             }
         }
 
-        let status = child_process.wait().unwrap();
+        let status_res = child_process.wait().ok();
 
         // Release Lock and clear current path
         {
             let mut current_path = current_path_flag.lock().unwrap();
             *current_path = None;
         }
+        {
+            let mut p = active_pid_flag.lock().unwrap();
+            *p = None;
+        }
         let mut transcribing_flag = is_transcribing_flag.lock().unwrap();
         *transcribing_flag = false;
         
-        if status.success() {
-            window.emit("transcription-progress", "{\"status\": \"finished\", \"message\": \"Transcription completed successfully\"}").unwrap();
-        } else {
-            window.emit("transcription-progress", "{\"status\": \"error\", \"message\": \"Python script crashed. Check terminal output.\"}").unwrap();
+        if let Some(status) = status_res {
+            if status.success() {
+                window.emit("transcription-progress", "{\"status\": \"finished\", \"message\": \"Transcription completed successfully\"}").unwrap();
+            } else {
+                window.emit("transcription-progress", "{\"status\": \"error\", \"message\": \"Python script stopped or exited.\"}").unwrap();
+            }
         }
     });
 }
 
 #[tauri::command]
-fn get_sessions(state: State<'_, AppState>, window: tauri::Window) -> Result<Vec<Session>, String> {
+fn get_sessions(state: State<'_, AppState>, window: tauri::Window, user_name: Option<String>) -> Result<Vec<Session>, String> {
     let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
     let target_dir = home_dir.join("Downloads").join("CognitoCall");
 
@@ -207,9 +253,11 @@ fn get_sessions(state: State<'_, AppState>, window: tauri::Window) -> Result<Vec
                 // Spawn background transcription
                 spawn_transcription_job(
                     newest_session.path.clone(),
+                    user_name.clone(),
                     window,
                     Arc::clone(&state.is_transcribing),
                     Arc::clone(&state.current_transcribing_path),
+                    Arc::clone(&state.active_pid),
                 );
             }
         }
@@ -219,7 +267,7 @@ fn get_sessions(state: State<'_, AppState>, window: tauri::Window) -> Result<Vec
 }
 
 #[tauri::command]
-async fn process_recording(folder_path: String, window: tauri::Window, state: State<'_, AppState>) -> Result<(), String> {
+async fn process_recording(folder_path: String, user_name: Option<String>, window: tauri::Window, state: State<'_, AppState>) -> Result<(), String> {
     let mut is_transcribing = state.is_transcribing.lock().unwrap();
     if *is_transcribing {
         return Err("A transcription job is already running. Please wait to prevent RAM overload.".into());
@@ -229,11 +277,67 @@ async fn process_recording(folder_path: String, window: tauri::Window, state: St
 
     spawn_transcription_job(
         folder_path,
+        user_name,
         window,
         Arc::clone(&state.is_transcribing),
         Arc::clone(&state.current_transcribing_path),
+        Arc::clone(&state.active_pid),
     );
 
+    Ok(())
+}
+
+#[tauri::command]
+fn cancel_transcription(state: State<'_, AppState>, window: tauri::Window) -> Result<(), String> {
+    let pid_opt = {
+        let mut p = state.active_pid.lock().unwrap();
+        p.take()
+    };
+
+    if let Some(pid) = pid_opt {
+        std::thread::spawn(move || {
+            #[cfg(target_os = "windows")]
+            {
+                let _ = Command::new("taskkill").args(&["/F", "/PID", &pid.to_string()]).output();
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                let _ = Command::new("kill").args(&["-9", &pid.to_string()]).output();
+            }
+        });
+    }
+
+    {
+        let mut current_path = state.current_transcribing_path.lock().unwrap();
+        *current_path = None;
+    }
+    {
+        let mut is_transcribing = state.is_transcribing.lock().unwrap();
+        *is_transcribing = false;
+    }
+
+    let _ = window.emit("transcription-progress", "{\"status\": \"error\", \"message\": \"Transcription process cancelled by user.\"}");
+    Ok(())
+}
+
+#[tauri::command]
+fn clean_app_data() -> Result<(), String> {
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let data_dir = home_dir.join(".cognitocall");
+    let cache_dir = home_dir.join(".cache").join("huggingface").join("hub");
+
+    let _ = fs::remove_dir_all(&data_dir);
+
+    if cache_dir.exists() {
+        if let Ok(entries) = fs::read_dir(cache_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.contains("mlx-community") || name.contains("simple-diarizer") {
+                    let _ = fs::remove_dir_all(entry.path());
+                }
+            }
+        }
+    }
     Ok(())
 }
 
@@ -444,20 +548,69 @@ fn save_session_action_items(path: String, action_items: String) -> Result<(), S
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            if let Some(window) = app.get_webview_window("main") {
+                if let Ok(Some(monitor)) = window.current_monitor() {
+                    let scale_factor = monitor.scale_factor();
+                    let physical_size = monitor.size();
+                    let logical_width = physical_size.width as f64 / scale_factor;
+                    let logical_height = physical_size.height as f64 / scale_factor;
+
+                    // Target aspect ratio: 1440 x 900 (1.6)
+                    let target_aspect_ratio = 1440.0 / 900.0;
+                    
+                    // Occupy up to 90% of screen size while strictly enforcing 1440:900 aspect ratio
+                    let max_target_w = logical_width * 0.90;
+                    let max_target_h = logical_height * 0.90;
+
+                    let (win_w, win_h) = if (max_target_w / max_target_h) > target_aspect_ratio {
+                        let h = max_target_h;
+                        let w = h * target_aspect_ratio;
+                        (w, h)
+                    } else {
+                        let w = max_target_w;
+                        let h = w / target_aspect_ratio;
+                        (w, h)
+                    };
+
+                    let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize::new(win_w, win_h)));
+                    let _ = window.center();
+                }
+            }
+            Ok(())
+        })
         .manage(AppState {
             is_transcribing: Arc::new(Mutex::new(false)),
             current_transcribing_path: Arc::new(Mutex::new(None)),
+            active_pid: Arc::new(Mutex::new(None)),
         })
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
             get_sessions,
             process_recording,
+            cancel_transcription,
+            clean_app_data,
             get_session_details,
             rename_session,
             save_session_notes,
             save_session_action_items
         ])
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                let state = window.state::<AppState>();
+                let pid_opt = {
+                    let mut p = state.active_pid.lock().unwrap();
+                    p.take()
+                };
+                if let Some(pid) = pid_opt {
+                    #[cfg(target_os = "windows")]
+                    let _ = Command::new("taskkill").args(&["/F", "/PID", &pid.to_string()]).output();
+                    #[cfg(not(target_os = "windows"))]
+                    let _ = Command::new("kill").args(&["-9", &pid.to_string()]).output();
+                }
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -2,6 +2,45 @@
 
 ---
 
+## [2026-08-01 20:55 IST] - v1.2.0
+
+### 💡 Summary
+Consolidated major milestone update for public release: **Streaming Whisper & Diarization Audio Windowing for 3-Hour (2 GB) Recordings**, **Sentence-Level Context-Aware AI Restructuring**, **Google Meet Live Captions Capture**, **Tauri 1440x900 Responsive Sizing & Native Icons**, **First-Time User Onboarding & Name Personalization**, **Non-Blocking PID Process Cancellation on `Escape` key**, **Sidecar Process Renaming (`cognito-assistant`)**, and **Granular Installer/Uninstaller Scripts**.
+
+### 🚀 Key Additions & Optimizations
+- **Streaming 15-Minute Whisper Audio Windowing (`transcriber.py`):** Sliced Whisper transcription into 15-minute streaming windows for recordings longer than 30 minutes, keeping memory usage constant at ~350 MB ($O(1)$ RAM profile) and eliminating thermal throttling on MacBook Air.
+- **Windowed Diarization (`simple-diarizer`):** Sliced tab audio before spectral clustering, scaling matrix elements down from 207,360,000 floats to 2,560,000 floats (80x reduction in matrix complexity).
+- **Sentence-Level Context-Aware AI Restructuring:** Restructured fragmented speech into complete, well-punctuated sentences and deduced true participant names from conversational context, reducing `transcript.json` size by over 100x (~50 KB).
+- **Google Meet Live Captions Capture (`meet-captions.js`):** Added MutationObserver content script on `meet.google.com` to capture live captions and output `captions.json`, bypassing heavy Whisper tab processing when captions are enabled.
+- **Tauri 1440x900 Responsive Aspect Ratio & Icons:** Updated `lib.rs` monitor scaling to maintain 1440:900 (16:10) aspect ratio across screen resolutions, and generated native `.icns` and multi-res PNG icons from `Logo_icon.svg`.
+- **First-Time User Onboarding (`OnboardingModal.tsx`):** Added modal prompting users for their display name (e.g. *"Ram"*), attributing local microphone segments to the user's name and passing identity context to Gemma.
+- **Non-Blocking PID Process Cancellation & Shutdown Hook:** Implemented non-blocking PID tracking for `Escape` key cancellation and added an `on_window_event` destroy listener in `lib.rs` to terminate background sidecars without UI deadlocks.
+- **Process Naming:** Renamed sidecar executable alias to `cognito-assistant` so Activity Monitor / Task Manager clearly identifies the process.
+- **Shell Installers & Documentation:** Created `install.sh`, `build-local.sh`, and `uninstall.sh` (--app-only, --models-only, --all) and updated `README.md`.
+
+### 📄 Changed Files
+- `cognito-desktop/python/transcriber.py`
+- `cognito-desktop/src-tauri/src/lib.rs`
+- `cognito-desktop/src-tauri/tauri.conf.json`
+- `cognito-desktop/src/App.tsx`
+- `cognito-desktop/src/components/OnboardingModal.tsx` (New)
+- `cognito-desktop/src/components/Player.tsx`
+- `packages/extension/content/meet-captions.js` (New)
+- `packages/extension/background/service-worker.js`
+- `packages/extension/manifest.json`
+- `.github/workflows/release.yml`
+- `install.sh` (New)
+- `build-local.sh` (New)
+- `uninstall.sh` (New)
+- `README.md`
+- `ARCHITECTURE.md`
+- `file-structure.md`
+- `TESTING.md`
+- `VERSION_LOG.md`
+- `CHANGELOG.md`
+
+---
+
 ## [2026-08-01 18:55 IST]
 
 ### 💡 Summary

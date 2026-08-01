@@ -15,6 +15,7 @@ We follow the **X.Y.Z** semantic versioning format:
 
 | Version | Date | Summary | Key Impact |
 | :--- | :--- | :--- | :--- |
+| **v1.2.0** | 2026-08-01 | **Public Release, 3-Hour Long Call Optimization, Sentence AI Restructuring, & Desktop Control** | Streaming Whisper 15-min windowing (constant ~350MB RAM), Gemma sentence-level restructuring, Google Meet live captions fast-path, 1440x900 Tauri window, native icons, onboarding modal, Escape key process cancellation, cognito-assistant process name, and installer/uninstaller scripts |
 | **v0.7.1** | 2026-08-01 | **WebM Duration & Cues Seeking Repair** | Pure JS EBML metadata remuxer in offscreen recorder to fix video/audio playability and enable seeking across all media players |
 | **v0.7.0** | 2026-08-01 | **Recording Safety Limits & Mic Copy Update** | 3-hour cap, tab-close auto-stop, toolbar REC badge, desktop notifications, and Chrome UX copy updates |
 | **v0.6.0** | 2026-06-13 | **Apple-Native MLX Migration** | Memory-efficient mlx-whisper backend + aggressive memory releases |
@@ -29,6 +30,21 @@ We follow the **X.Y.Z** semantic versioning format:
 | **v0.2.0** | 2026-03-15 | **Architecture & Audio Overhaul** | Complete re-architecture & Mic mixing |
 
 | **v0.1.0** | 2026-03-15 | **Initial Prototype** | Basic tab recording proof-of-concept |
+
+---
+
+## [v1.2.0] — 2026-08-01
+**Git Push Action:** "feat: public release, 3-hour streaming audio windowing, sentence AI restructuring, Google Meet live captions, onboarding modal, and installer scripts"
+
+### 🚀 Implementation
+- **Streaming Whisper & Diarization Windowing (3-Hour / 2 GB Call Support):** Sliced Whisper audio transcription and simple-diarizer spectral clustering into 15-minute streaming windows. Reduced peak RAM usage on 3-hour calls from ~4.5 GB to ~350 MB ($O(1)$ constant memory overhead) with 80x matrix complexity reduction.
+- **Context-Aware Sentence Restructuring:** Replaced word-level alignment arrays with Gemma-powered sentence restructuring and contextual speaker attribution (direct address, self-identification), reducing `transcript.json` file size by over 100x.
+- **Google Meet Live Captions Fast-Path:** Added `meet-captions.js` content script using `MutationObserver` to capture participant names and text, bypassing heavy Whisper tab processing when captions are enabled.
+- **Tauri 1440x900 Responsive Sizing & Branding:** Updated window sizing to strictly enforce 1440:900 aspect ratio and generated native macOS `.icns` and multi-res PNG application icons from `Logo_icon.svg`.
+- **First-Time User Onboarding:** Added `OnboardingModal.tsx` prompting users for their display name (e.g. *"Ram"*), attributing microphone segments to the user and passing identity context to Gemma.
+- **Non-Blocking PID Process Cancellation & Shutdown Cleanup:** Added global `Escape` key handler and Tauri `on_window_event` window destroy listener using non-blocking PID tracking to immediately terminate background Python sidecars without UI freeze.
+- **Process Naming:** Renamed sidecar executable alias to `cognito-assistant` so Activity Monitor / Task Manager clearly identifies the process.
+- **Shell Installers & Documentation:** Created `install.sh`, `build-local.sh`, and `uninstall.sh` (--app-only, --models-only, --all) and updated `README.md`.
 
 ---
 

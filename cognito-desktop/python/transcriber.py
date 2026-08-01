@@ -92,85 +92,215 @@ def log_resources(folder_path, point_label):
     except Exception as e:
         log_diagnostic(folder_path, f"[ERROR] Failed to log hardware resources at '{point_label}': {e}")
 
-def generate_intelligence(transcript_text, folder_path):
+def generate_intelligence(final_segments, folder_path, user_name="Me"):
     try:
         import mlx_lm
     except ImportError:
         log_diagnostic(folder_path, "[ERROR] mlx-lm library not installed. Skipping intelligence generation.")
         return
 
+    if not final_segments:
+        log_diagnostic(folder_path, "[WARNING] No transcript segments available for intelligence generation.")
+        return
+
     model_id = "mlx-community/gemma-2-2b-it-4bit"
-    emit_progress("summarizing", "Generating meeting summary and action items with Gemma...")
-    log_diagnostic(folder_path, f"Loading LLM {model_id} for intelligence generation...")
-    
+    log_diagnostic(folder_path, f"Loading LLM {model_id} for user '{user_name}' transcript refinement and map-reduce intelligence...")
+
+    # Group segments into chronological chunks (~15 minutes = 900 seconds per chunk)
+    chunk_interval_sec = 900.0
+    chunks = []
+    current_chunk = []
+    chunk_start_time = 0.0
+
+    for seg in final_segments:
+        if not current_chunk:
+            chunk_start_time = seg.get("start", 0.0)
+            current_chunk.append(seg)
+        elif (seg.get("start", 0.0) - chunk_start_time) < chunk_interval_sec:
+            current_chunk.append(seg)
+        else:
+            chunks.append(current_chunk)
+            current_chunk = [seg]
+            chunk_start_time = seg.get("start", 0.0)
+
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    total_chunks = len(chunks)
+    log_diagnostic(folder_path, f"Split transcript into {total_chunks} chunk(s) for LLM processing.")
+
+    master_refined_segments = []
+    chunk_summaries = []
+
     try:
-        model, tokenizer = mlx_lm.load(model_id)
-        
-        system_prompt = (
-            "You are an expert executive assistant. Analyze the following meeting transcript. You must extract three things:\n"
-            "1. A 3-to-5 word title for the meeting under the key 'title'.\n"
-            "2. An 'executive_summary': A brief, 2-3 sentence overview of the call's main purpose.\n"
-            "3. A 'detailed_summary': Break the meeting down chronologically into parts (e.g., Beginning, Middle, Conclusion). For each part, summarize what was discussed.\n"
-            "4. 'action_items': A list of any tasks, promises, or next steps mentioned.\n"
-            "You MUST format your entire response strictly as a JSON object matching this schema:\n"
-            "{\n"
-            "  \"title\": \"3-to-5 word title\",\n"
-            "  \"notes\": {\n"
-            "    \"executive_summary\": \"...\",\n"
-            "    \"detailed_summary\": [\n"
-            "      {\"phase\": \"Beginning/Middle/Conclusion\", \"content\": \"...\"}\n"
-            "    ]\n"
-            "  },\n"
-            "  \"action_items\": [\n"
-            "    {\"text\": \"...\", \"done\": false}\n"
-            "  ]\n"
-            "}"
-        )
-        
-        messages = [
-            {"role": "user", "content": f"{system_prompt}\n\nHere is the transcript:\n{transcript_text}"}
-        ]
-        formatted_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        
-        log_diagnostic(folder_path, "Generating intelligence summary from transcript...")
-        response = mlx_lm.generate(model, tokenizer, prompt=formatted_prompt, max_tokens=1024, verbose=False)
-        
+        load_res = mlx_lm.load(model_id)
+        model, tokenizer = load_res[0], load_res[1]
+
+        # MAP STAGE: Process each chunk for sentence-level refinement + local summary
+        for idx, chunk in enumerate(chunks, 1):
+            if total_chunks > 1:
+                emit_progress("summarizing", f"Refining sentences & analyzing section {idx} of {total_chunks} with Gemma...")
+            else:
+                emit_progress("summarizing", "Refining transcript sentences and generating notes with Gemma...")
+
+            chunk_text = "\n".join([f"[{seg.get('start', 0.0):.1f}s - {seg.get('end', 0.0):.1f}s] {seg.get('speaker', 'Unknown')}: {seg.get('text', '')}" for seg in chunk])
+            if len(chunk_text) > 12000:
+                chunk_text = chunk_text[:12000] + "... [truncated]"
+
+            map_prompt = (
+                "You are an expert transcript editor and executive assistant.\n"
+                f"Note: The primary user attending this meeting is '{user_name}'.\n"
+                "Analyze the following speech segments from a meeting.\n"
+                "Your tasks:\n"
+                "1. Restructure raw speech fragments into complete, clean, well-punctuated SENTENCES.\n"
+                f"2. Infer speaker names from conversational context (e.g. if someone addresses '{user_name}' or another person, attribute their response to that person).\n"
+                "3. Preserve estimated start and end timestamps for each sentence.\n"
+                "4. Provide a 2-3 sentence summary of this section and list key action items.\n\n"
+                "You MUST format your entire response strictly as a JSON object matching this schema:\n"
+                "{\n"
+                "  \"title\": \"3-to-5 word title\",\n"
+                "  \"refined_sentences\": [\n"
+                "    {\"speaker\": \"Speaker Name\", \"start\": 0.0, \"end\": 4.5, \"text\": \"Cleaned complete sentence.\"}\n"
+                "  ],\n"
+                "  \"summary\": \"Concise paragraph summary of this section.\",\n"
+                "  \"action_items\": [\"Action item description\"]\n"
+                "}\n\n"
+                f"Transcript slice:\n{chunk_text}"
+            )
+
+            messages = [{"role": "user", "content": map_prompt}]
+            formatted_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)  # type: ignore
+
+            log_diagnostic(folder_path, f"Processing sentence refinement & summary for chunk {idx}/{total_chunks}...")
+            response = mlx_lm.generate(model, tokenizer, prompt=formatted_prompt, max_tokens=1024, verbose=False)
+
+            # Clear intermediate caches immediately
+            try:
+                mx.metal.clear_cache()
+            except Exception:
+                pass
+            gc.collect()
+
+            # Parse response for refined sentences and section summary
+            clean_chunk_resp = response.strip()
+            if "```json" in clean_chunk_resp:
+                clean_chunk_resp = clean_chunk_resp.split("```json")[1].split("```")[0].strip()
+            elif "```" in clean_chunk_resp:
+                clean_chunk_resp = clean_chunk_resp.split("```")[1].split("```")[0].strip()
+
+            parsed_chunk = {}
+            try:
+                parsed_chunk = json.loads(clean_chunk_resp)
+            except Exception:
+                log_diagnostic(folder_path, f"[WARNING] Chunk {idx} JSON parse failed; keeping raw segments as fallback.")
+
+            refined_sents = parsed_chunk.get("refined_sentences", [])
+            if isinstance(refined_sents, list) and len(refined_sents) > 0:
+                for r_seg in refined_sents:
+                    if isinstance(r_seg, dict) and "text" in r_seg:
+                        master_refined_segments.append({
+                            "id": f"seg_{len(master_refined_segments)}",
+                            "speaker": str(r_seg.get("speaker", "Speaker")).strip() or "Speaker",
+                            "start": float(r_seg.get("start", 0.0)),
+                            "end": float(r_seg.get("end", 0.0)),
+                            "text": str(r_seg.get("text", "")).strip(),
+                            "source": "ai_refined",
+                            "words": []
+                        })
+            else:
+                # Fallback: keep raw chunk segments if AI parsing failed for this chunk
+                for r_seg in chunk:
+                    master_refined_segments.append({
+                        "id": f"seg_{len(master_refined_segments)}",
+                        "speaker": r_seg.get("speaker", "Speaker"),
+                        "start": float(r_seg.get("start", 0.0)),
+                        "end": float(r_seg.get("end", 0.0)),
+                        "text": str(r_seg.get("text", "")).strip(),
+                        "source": r_seg.get("source", "raw"),
+                        "words": []
+                    })
+
+            sec_summary = parsed_chunk.get("summary", "")
+            if not sec_summary:
+                sec_summary = response.strip()[:300]
+            chunk_summaries.append(f"--- Section {idx} (Mins {int(chunk[0].get('start', 0)//60)}-{int(chunk[-1].get('end', 0)//60)}) ---\n{sec_summary}")
+
+        # REDUCE STAGE: Synthesize all chunk summaries into master meeting notes
+        if total_chunks > 1:
+            emit_progress("summarizing", "Synthesizing master executive summary and action items...")
+            combined = "\n\n".join(chunk_summaries)
+            if len(combined) > 12000:
+                combined = combined[:12000] + "... [truncated]"
+
+            reduce_prompt = (
+                "You are an expert executive assistant. Below are section-by-section summaries of a long meeting call.\n"
+                "Synthesize them into a master meeting summary.\n"
+                "You MUST format your entire response strictly as a JSON object matching this schema:\n"
+                "{\n"
+                "  \"title\": \"3-to-5 word title\",\n"
+                "  \"notes\": {\n"
+                "    \"executive_summary\": \"A brief 2-3 sentence overview of the entire call\",\n"
+                "    \"detailed_summary\": [\n"
+                "      {\"phase\": \"Beginning\", \"content\": \"...\"},\n"
+                "      {\"phase\": \"Middle\", \"content\": \"...\"},\n"
+                "      {\"phase\": \"Conclusion\", \"content\": \"...\"}\n"
+                "    ]\n"
+                "  },\n"
+                "  \"action_items\": [\n"
+                "    {\"text\": \"Action item description\", \"done\": false}\n"
+                "  ]\n"
+                "}"
+            )
+
+            reduce_messages = [{"role": "user", "content": f"{reduce_prompt}\n\nSection Summaries:\n{combined}"}]
+            formatted_reduce_prompt = tokenizer.apply_chat_template(reduce_messages, tokenize=False, add_generation_prompt=True)  # type: ignore
+
+            log_diagnostic(folder_path, "Running final synthesis pass across all section summaries...")
+            final_response = mlx_lm.generate(model, tokenizer, prompt=formatted_reduce_prompt, max_tokens=1024, verbose=False)
+        else:
+            final_response = response
+
         # Clean up model references and clear cache immediately
         del model
         try:
             mx.metal.clear_cache()
         except Exception:
             pass
-        try:
-            mx.clear_cache()
-        except Exception:
-            pass
         gc.collect()
-        
-        log_diagnostic(folder_path, f"Raw response from Gemma: {response}")
-        
-        # Parse JSON from response
-        clean_response = response.strip()
+
+        log_diagnostic(folder_path, f"Raw final response from Gemma: {final_response}")
+
+        clean_response = final_response.strip()
         if "```json" in clean_response:
             clean_response = clean_response.split("```json")[1].split("```")[0].strip()
         elif "```" in clean_response:
             clean_response = clean_response.split("```")[1].split("```")[0].strip()
-            
+
         try:
             intelligence_data = json.loads(clean_response)
         except json.JSONDecodeError:
-            log_diagnostic(folder_path, "[WARNING] JSON decoding failed, trying custom cleanup...")
-            # Try to handle trailing commas in lists
+            log_diagnostic(folder_path, "[WARNING] Direct JSON parsing failed, attempting fallback cleanup...")
             clean_response_fixed = clean_response.replace(',\n}', '\n}').replace(',\n  }', '\n  }')
-            intelligence_data = json.loads(clean_response_fixed)
-        
-        title = intelligence_data.get("title", "").strip()
+            try:
+                intelligence_data = json.loads(clean_response_fixed)
+            except Exception:
+                intelligence_data = {
+                    "title": "Meeting Summary",
+                    "notes": {
+                        "executive_summary": clean_response[:300],
+                        "detailed_summary": [{"phase": "Full Call", "content": clean_response}]
+                    },
+                    "action_items": []
+                }
+
+        raw_title = intelligence_data.get("title", "")
+        title = str(raw_title).strip() if raw_title else "Meeting Summary"
         if not title:
             title = "Meeting Summary"
-            
+
         notes = intelligence_data.get("notes", "")
         raw_items = intelligence_data.get("action_items", [])
-        
+
         action_items = []
         for item in raw_items:
             if isinstance(item, dict) and "text" in item:
@@ -183,34 +313,104 @@ def generate_intelligence(transcript_text, folder_path):
                     "text": item,
                     "done": False
                 })
-                
-        # Save metadata.json for naming
+
+        # Overwrite transcript.json with sentence-level AI refined segments!
+        if master_refined_segments:
+            out_path = os.path.join(folder_path, "transcript.json")
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump({"segments": master_refined_segments}, f, indent=2, ensure_ascii=False)
+            log_diagnostic(folder_path, f"Saved AI-refined sentence-level transcript ({len(master_refined_segments)} segments) to transcript.json")
+
         metadata_path = os.path.join(folder_path, "metadata.json")
         with open(metadata_path, "w", encoding="utf-8") as f:
             json.dump({
                 "name": title,
                 "display_name": title
             }, f, indent=2, ensure_ascii=False)
-            
+
         summary_path = os.path.join(folder_path, "summary.json")
         with open(summary_path, "w", encoding="utf-8") as f:
             json.dump({
                 "notes": notes,
                 "action_items": action_items
             }, f, indent=2, ensure_ascii=False)
-            
-        log_diagnostic(folder_path, "Intelligence summary and metadata successfully saved")
-        
+
+        log_diagnostic(folder_path, "Intelligence summary, notes, and refined transcript successfully saved")
+
     except Exception as e:
         log_diagnostic(folder_path, f"[ERROR] Intelligence generation failed: {e}")
         log_diagnostic(folder_path, traceback.format_exc())
 
-def main(folder_path):
+def transcribe_audio_file_windowed(audio_path, model_name, folder_path):
+    duration = 0.0
+    info = None
+    try:
+        import torchaudio
+        info = torchaudio.info(audio_path)
+        duration = info.num_frames / info.sample_rate
+    except Exception as info_err:
+        log_diagnostic(folder_path, f"[WARNING] Could not read audio duration for {os.path.basename(audio_path)}: {info_err}")
+
+    if info is not None and duration > 1800.0:  # > 30 minutes call
+        log_diagnostic(folder_path, f"Audio {os.path.basename(audio_path)} ({duration:.1f}s) > 30 mins. Running 15-minute windowed Whisper transcription...")
+        import torchaudio
+        window_sec = 900.0  # 15 minutes per slice
+        sample_rate = info.sample_rate
+        total_frames = info.num_frames
+        window_frames = int(window_sec * sample_rate)
+
+        frame_offset = 0
+        win_index = 0
+        all_window_segments = []
+
+        while frame_offset < total_frames:
+            frames_to_read = min(window_frames, total_frames - frame_offset)
+            offset_sec = frame_offset / sample_rate
+
+            log_diagnostic(folder_path, f"Transcribing Whisper window {win_index + 1} ({offset_sec/60:.1f}m - {(offset_sec + frames_to_read/sample_rate)/60:.1f}m)...")
+            sig_chunk, sr = torchaudio.load(audio_path, frame_offset=frame_offset, num_frames=frames_to_read)
+            tmp_wav = os.path.join(folder_path, f"_temp_whisper_{os.path.basename(audio_path)}_{win_index}.wav")
+            torchaudio.save(tmp_wav, sig_chunk, sr)
+
+            try:
+                res = mlx_whisper.transcribe(tmp_wav, path_or_hf_repo=model_name, word_timestamps=True)
+                for seg in res.get("segments", []):
+                    seg["start"] = float(seg.get("start", 0.0)) + offset_sec
+                    seg["end"] = float(seg.get("end", 0.0)) + offset_sec
+                    all_window_segments.append(seg)
+            except Exception as win_err:
+                log_diagnostic(folder_path, f"[WARNING] Whisper window {win_index} failed: {win_err}")
+            finally:
+                if os.path.exists(tmp_wav):
+                    try:
+                        os.remove(tmp_wav)
+                    except Exception:
+                        pass
+                try:
+                    mx.metal.clear_cache()
+                except Exception:
+                    pass
+                gc.collect()
+
+            frame_offset += window_frames
+            win_index += 1
+
+        return {"segments": all_window_segments}
+    else:
+        return mlx_whisper.transcribe(audio_path, path_or_hf_repo=model_name, word_timestamps=True)
+
+def main(folder_path, user_name="Me"):
+    try:
+        import setproctitle  # type: ignore
+        setproctitle.setproctitle("cognito-assistant")
+    except Exception:
+        pass
+
     psutil.cpu_percent(interval=None)
     psutil.Process(os.getpid()).cpu_percent(interval=None)
     
     init_diagnostic_log(folder_path)
-    log_diagnostic(folder_path, "Starting MLX transcription process pipeline...")
+    log_diagnostic(folder_path, f"Starting MLX transcription process pipeline for user '{user_name}'...")
     
     # Establish baseline with garbage collection first
     gc.collect()
@@ -242,17 +442,17 @@ def main(folder_path):
     
     try:
         # ==========================================
-        # PHASE 1: mic.opus (Local User - Hardcoded "Me")
+        # PHASE 1: mic.opus (Local User)
         # ==========================================
         if os.path.exists(mic_path):
             t_start = time.perf_counter()
             try:
                 emit_progress("mic_transcribing", "Transcribing your microphone audio with MLX-Whisper...")
                 log_diagnostic(folder_path, f"Running mlx-whisper on {os.path.basename(mic_path)} using {model_name}")
-                result_mic = mlx_whisper.transcribe(mic_path, path_or_hf_repo=model_name, word_timestamps=True)
+                result_mic = transcribe_audio_file_windowed(mic_path, model_name, folder_path)
                 
                 for segment in result_mic.get("segments", []):
-                    segment["speaker"] = "Me"  # type: ignore
+                    segment["speaker"] = user_name  # type: ignore
                     segment["source"] = "mic"  # type: ignore
                     all_segments.append(segment)
                 
@@ -270,18 +470,44 @@ def main(folder_path):
             mx.metal.clear_cache()
         except Exception:
             pass
-        mx.clear_cache()
         gc.collect()
             
+        # Check for Google Meet captions.json fast-path
+        captions_path = os.path.join(folder_path, "captions.json")
+        has_valid_captions = False
+        if os.path.exists(captions_path):
+            try:
+                log_diagnostic(folder_path, "Found Google Meet captions.json! Checking captions data...")
+                with open(captions_path, "r", encoding="utf-8") as f:
+                    cap_data = json.load(f)
+
+                cap_segments = cap_data.get("segments", [])
+                if cap_segments:
+                    emit_progress("captions_processing", "Loaded Google Meet live captions. Bypassing heavy Whisper tab processing...")
+                    for idx, c_seg in enumerate(cap_segments):
+                        all_segments.append({
+                            "id": f"seg_cap_{idx}",
+                            "speaker": c_seg.get("speaker", "Speaker"),
+                            "start": float(c_seg.get("start", 0.0)),
+                            "end": float(c_seg.get("end", 0.0)),
+                            "text": str(c_seg.get("text", "")).strip(),
+                            "source": "captions",
+                            "words": []
+                        })
+                    has_valid_captions = True
+                    log_diagnostic(folder_path, f"[FAST PATH] Loaded {len(cap_segments)} caption segments from Google Meet.")
+            except Exception as cap_err:
+                log_diagnostic(folder_path, f"[WARNING] Failed to parse captions.json: {cap_err}. Falling back to standard Whisper pipeline.")
+
         # ==========================================
         # PHASE 2: tab.opus (Remote Participants)
         # ==========================================
-        if os.path.exists(tab_path):
+        if not has_valid_captions and os.path.exists(tab_path):
             t_start = time.perf_counter()
             try:
                 emit_progress("tab_transcribing", "Transcribing remote participants with MLX-Whisper...")
                 log_diagnostic(folder_path, f"Running mlx-whisper on {os.path.basename(tab_path)} using {model_name}")
-                result_tab = mlx_whisper.transcribe(tab_path, path_or_hf_repo=model_name, word_timestamps=True)
+                result_tab = transcribe_audio_file_windowed(tab_path, model_name, folder_path)
                 
                 tab_segments = result_tab.get("segments", [])
                 tab_transcribe_time = time.perf_counter() - t_start
@@ -290,6 +516,8 @@ def main(folder_path):
                 tab_transcribe_time = time.perf_counter() - t_start
                 log_diagnostic(folder_path, f"[ERROR] Failed during tab audio transcription: {e}")
                 log_diagnostic(folder_path, traceback.format_exc())
+        elif has_valid_captions:
+            log_diagnostic(folder_path, "Using Google Meet captions; skipping tab audio transcription.")
         else:
             log_diagnostic(folder_path, "Tab audio file not found, skipping tab transcription.")
             
@@ -298,27 +526,72 @@ def main(folder_path):
             mx.metal.clear_cache()
         except Exception:
             pass
-        mx.clear_cache()
         gc.collect()
             
         # Log resources immediately after transcription phase
         log_resources(folder_path, "Peak usage (after transcription)")
         
         # ==========================================
-        # PHASE 3: simple-diarizer on tab audio (Tuned Parameters)
+        # PHASE 3: simple-diarizer on tab audio (Tuned & Windowed Diarization)
         # ==========================================
         diar_segments = []
-        if os.path.exists(tab_path):
+        if not has_valid_captions and os.path.exists(tab_path):
             t_start = time.perf_counter()
             diar = None
             try:
                 emit_progress("tab_diarizing", "Running tuned diarization on remote audio...")
-                # Initialize diarizer
                 diar = Diarizer(embed_model='xvec', cluster_method='sc')
-                # Run diarization:
-                # - num_speakers=None (do not hardcode speaker limits)
-                # - threshold=0.20 (conservative threshold to reduce speaker hallucinations)
-                diar_segments = diar.diarize(tab_path, num_speakers=None, threshold=0.20)
+                
+                # Check audio duration for long call windowing strategy
+                tab_duration = 0.0
+                info = None
+                try:
+                    import torchaudio
+                    info = torchaudio.info(tab_path)
+                    tab_duration = info.num_frames / info.sample_rate
+                except Exception as info_err:
+                    log_diagnostic(folder_path, f"[WARNING] Could not check tab audio duration: {info_err}")
+
+                if info is not None and tab_duration > 1800.0:  # > 30 minutes call
+                    log_diagnostic(folder_path, f"Audio duration ({tab_duration:.1f}s) > 30 mins; running windowed diarization...")
+                    import torchaudio
+                    window_sec = 900.0  # 15 minutes per slice
+                    sample_rate = info.sample_rate
+                    total_frames = info.num_frames
+                    window_frames = int(window_sec * sample_rate)
+                    
+                    frame_offset = 0
+                    win_index = 0
+                    while frame_offset < total_frames:
+                        frames_to_read = min(window_frames, total_frames - frame_offset)
+                        offset_sec = frame_offset / sample_rate
+                        
+                        log_diagnostic(folder_path, f"Diarizing window {win_index + 1} ({offset_sec/60:.1f}m - {(offset_sec + frames_to_read/sample_rate)/60:.1f}m)...")
+                        sig_chunk, sr = torchaudio.load(tab_path, frame_offset=frame_offset, num_frames=frames_to_read)
+                        tmp_wav_path = os.path.join(folder_path, f"_temp_diar_{win_index}.wav")
+                        torchaudio.save(tmp_wav_path, sig_chunk, sr)
+                        
+                        try:
+                            sub_diar = diar.diarize(tmp_wav_path, num_speakers=None, threshold=0.20)
+                            for ds in sub_diar:
+                                if isinstance(ds, dict):
+                                    ds['start'] = float(ds.get('start', 0.0)) + offset_sec
+                                    ds['end'] = float(ds.get('end', 0.0)) + offset_sec
+                                    diar_segments.append(ds)
+                        except Exception as win_err:
+                            log_diagnostic(folder_path, f"[WARNING] Diarization failed for window {win_index}: {win_err}")
+                        finally:
+                            if os.path.exists(tmp_wav_path):
+                                try:
+                                    os.remove(tmp_wav_path)
+                                except Exception:
+                                    pass
+                        
+                        frame_offset += window_frames
+                        win_index += 1
+                else:
+                    diar_segments = diar.diarize(tab_path, num_speakers=None, threshold=0.20)
+
                 diarize_time = time.perf_counter() - t_start
                 log_diagnostic(folder_path, f"[TIMER] Tuned diarization of tab audio took: {diarize_time:.2f} seconds")
             except AssertionError as e:
@@ -418,9 +691,8 @@ def main(folder_path):
         emit_progress("complete", "Transcription complete.")
         gc.collect()
         
-        # Compile full transcript text for Gemma
-        transcript_text = "\n".join([f"{seg['speaker']}: {seg['text']}" for seg in final_segments])
-        generate_intelligence(transcript_text, folder_path)
+        # Run map-reduce intelligence generation
+        generate_intelligence(final_segments, folder_path, user_name=user_name)
         
     except Exception as e:
         log_diagnostic(folder_path, f"[CRITICAL ERROR] Pipeline crashed: {e}")
@@ -484,5 +756,6 @@ def main(folder_path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("folder", help="Path to workspace folder")
+    parser.add_argument("--user-name", default="Me", help="Display name of the primary user")
     args = parser.parse_args()
-    main(args.folder)
+    main(args.folder, user_name=args.user_name)

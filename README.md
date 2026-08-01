@@ -1,92 +1,130 @@
-# 🚀 Cognito Call
-![Version 0.7.1](https://img.shields.io/badge/version-0.7.1-blue)
+# Cognito Call 🧠🔒
 
-**Local-first meeting recorder.** Record Chrome tabs (Meet/Zoom/Teams) → save `.webm` locally → AI transcription, summaries, and action checklists.
+[![App Downloads](https://img.shields.io/github/downloads/HelloPrincePal/cognito-call/total?style=for-the-badge&color=3B82F6&logo=github&label=App%20Downloads)](https://github.com/HelloPrincePal/cognito-call/releases)
+[![Repo Views](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2FHelloPrincePal%2Fcognito-call&count_bg=%238B5CF6&title_bg=%231E293B&icon=github&icon_color=%23FFFFFF&title=Repo%20Views&edge_flat=false)](https://github.com/HelloPrincePal/cognito-call)
+[![Latest Release](https://img.shields.io/github/v/release/HelloPrincePal/cognito-call?style=for-the-badge&color=10B981&label=Latest%20Release)](https://github.com/HelloPrincePal/cognito-call/releases/latest)
+[![Privacy Guarantee](https://img.shields.io/badge/Privacy-100%25%20Local%20%26%20Offline-6366F1?style=for-the-badge&logo=apple)](https://github.com/HelloPrincePal/cognito-call)
 
-No cloud. No bots joining calls. No data leaks.
-
-## 📦 Cognito Call Extension
-The core recorder is a lightweight Chrome extension that works 100% offline.
-
-### 📥 Download Latest Extension
-All extension ZIP packages are automatically built and hosted on GitHub Releases:
-*   🚀 **Direct Download (Latest ZIP):** [cognito-call-extension.zip](https://github.com/HelloPrincePal/cognito-call/releases/latest/download/cognito-call-extension.zip)
-*   📦 **All Version Releases:** [View GitHub Releases](https://github.com/HelloPrincePal/cognito-call/releases)
-*   **Next Step:** Follow the [Installation Guide](#-installation-guide) below.
-
-### ✨ Core Extension Features
-*   ✅ **Tab + Mic Capture:** Records any meeting tab locally (Google Meet, Zoom, Teams, Webex).
-*   ✅ **Both Sides of the Call:** Captures both your microphone and the meeting audio.
-*   ✅ **Session Packager:** Creates a dedicated timestamped workspace folder per recording (e.g., `2026-05-09_14-30-00/`).
-*   ✅ **Triple File Export:** Simultaneously saves a mixed `video.webm`, an isolated `tab.opus`, and an isolated `mic.opus` for AI transcription.
-*   ✅ **Optimized File Size:** Uses VP9 and Opus codecs to maintain high quality at just ~8-10 MB per minute.
-*   ✅ **Local Unmuting:** You can still hear the tab audio from your speakers while it records securely in the background.
+**Cognito Call** is a 100% private, local-first meeting recorder and intelligence assistant for macOS. It captures dual-channel meeting audio (your microphone + remote tab audio) and runs AI transcription, speaker diarization, sentence restructuring, and executive summaries **completely offline on your Mac** using MLX, Whisper, and Gemma.
 
 ---
 
-## 🛠 Tech Stack
-- **Extension:** Manifest V3, Web Audio API, Offscreen Documents.
-- **Desktop App:** Tauri v2, Rust, React, Tailwind CSS.
-- **AI Pipeline:** mlx-whisper, simple-diarizer (Spectral Clustering), Gemma 2 2b (mlx-lm).
+## 🚀 Quick Setup Guide
 
-> 📚 **Deep Dive:** See [ARCHITECTURE.md](ARCHITECTURE.md) for a complete technical breakdown of how the isolated audio streams are processed locally by the AI pipeline.
-
-## 🛤️ Roadmap
-| Phase | Status | What |
-| :--- | :--- | :--- |
-| 🟢 1 | 🔄 Live | Chrome extension → local `.webm` |
-| 🟢 2 | 🔄 Live | Chrome Dashboard / Tauri Desktop (Browse & Play recordings) |
-| 🟢 3 | 🔄 Live | 100% Local AI (mlx-whisper + simple-diarizer) for Transcription & Diarization |
-| 🟢 4 | 🔄 Live | 100% Local AI LLM (Gemma 2 2b via mlx-lm) for Notes Summary & Action Items Checklist |
-
+Cognito Call consists of two parts:
+1. **Chrome Extension**: Captures meeting video & tab audio (supports Google Meet live captions).
+2. **Desktop Application**: Plays back meetings with Karaoke sync, generates transcripts, and creates AI meeting notes.
 
 ---
 
-## 📖 Installation Guide
+### Step 1: Install Chrome Extension
 
-### For Users (Download ZIP)
-1.  **Download** the [latest ZIP file](https://github.com/HelloPrincePal/cognito-call/releases/latest/download/cognito-call-extension.zip).
-2.  **Extract** the ZIP folder to a safe place on your computer.
-3.  Open Chrome and navigate to `chrome://extensions/`.
-4.  Enable **Developer mode** (toggle in the top right corner).
-5.  Click **Load unpacked** and select the folder you just extracted.
-
-### For Developers (Git Clone)
-1.  Clone the repo:
-    ```bash
-    git clone https://github.com/HelloPrincePal/cognito-call.git
-    cd cognito-call
-    ```
-2.  Open Chrome and navigate to `chrome://extensions/`.
-3.  Enable **Developer mode**.
-4.  Click **Load unpacked** and select the `packages/extension/` directory.
-
-### For Developers (Desktop App)
-To run the Phase 2 Tauri Desktop App (Video Gallery):
-1. Ensure you have Rust and Node.js installed.
-2. Navigate to the desktop app folder:
-    ```bash
-    cd cognito-desktop
-    ```
-3. Install dependencies:
-    ```bash
-    npm install
-    ```
-4. Start the Tauri development server:
-    ```bash
-    npm run tauri dev
-    ```
+1. Download the latest **[cognito-call-extension.zip](https://github.com/HelloPrincePal/cognito-call/releases/latest/download/cognito-call-extension.zip)**.
+2. Unzip the downloaded file on your computer.
+3. Open Google Chrome and navigate to `chrome://extensions`.
+4. Enable **Developer mode** (toggle in the top-right corner).
+5. Click **Load unpacked** in the top-left corner.
+6. Select the unzipped `packages/extension` folder.
+7. Click the Cognito Call extension icon in Chrome and grant microphone permissions when prompted.
 
 ---
 
-## 🛡️ Privacy First
-- 🔒 **100% local processing**
-- 🚫 **No analytics or tracking**
-- 🚫 **No external APIs or data transmission**
+### Step 2: Install Desktop Application
 
-See our complete [Privacy Policy](PRIVACY_POLICY.md) for more details.
+Choose one of the two installation methods below:
+
+#### Option A: One-Line Installer (Recommended)
+Run this command in your Terminal to download and install the app to `/Applications/Cognito Call.app`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/HelloPrincePal/cognito-call/main/install.sh | bash
+```
+
+> **Note for macOS Gatekeeper**: On first launch, if macOS displays a security warning, right-click `Cognito Call.app` in Finder and select **Open**.
+
+#### Option B: Build Directly From Source on Your System
+If you prefer not to download a pre-built app binary and want to compile the desktop app locally on your machine:
+
+```bash
+git clone https://github.com/HelloPrincePal/cognito-call.git
+cd cognito-call
+./build-local.sh
+```
 
 ---
 
-Built with ❤️ by Prince Pal  
-📫 Contact: [HelloPrincePal@gmail.com](mailto:HelloPrincePal@gmail.com)
+## 🔄 Updating Cognito Call
+
+Updating Cognito Call to the latest version takes just one command and **preserves all your saved meeting recordings and AI models**.
+
+### Option 1: Desktop App One-Line Update (Recommended)
+Run the installer command in your Terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/HelloPrincePal/cognito-call/main/install.sh | bash
+```
+> **What this does**: Automatically fetches the latest release binary from GitHub, updates `/Applications/Cognito Call.app`, and leaves all your recordings (`~/Downloads/CognitoCall/`) and AI models (`~/.cognitocall/`) completely safe and untouched.
+
+### Option 2: Update Source Build
+If you built from source, pull the latest code and rebuild:
+
+```bash
+git pull && ./build-local.sh
+```
+
+### Option 3: Update Chrome Extension
+1. Download the latest **[cognito-call-extension.zip](https://github.com/HelloPrincePal/cognito-call/releases/latest/download/cognito-call-extension.zip)** and extract it over your existing extension folder.
+2. Open `chrome://extensions` in Google Chrome and click the 🔄 **Reload** icon on the Cognito Call extension card.
+
+---
+
+## 👤 First Launch & Personalization
+
+When you open Cognito Call for the first time, the app will ask for your name (e.g., **Ram**).
+
+- **Microphone Attribution**: Your microphone audio stream will be labeled with your actual name (e.g., `"Ram"`) instead of generic labels.
+- **AI Context Awareness**: The local LLM (Gemma) receives your name in its context window to accurately attribute questions, answers, and presentation turns during meeting summarization.
+
+---
+
+## 📁 Storage Architecture & Folder Rules
+
+All meeting recordings, video files, and AI metadata are saved locally on your Mac:
+
+```
+~/Downloads/CognitoCall/
+  └── 2026-08-01_14-30-00/
+      ├── video.webm         # Full meeting screen/tab video recording
+      ├── mic.opus           # Your microphone audio stream
+      ├── tab.opus           # Remote participants tab audio stream
+      ├── transcript.json    # Sentence-level AI refined transcript
+      ├── metadata.json      # Meeting title & display metadata
+      └── summary.json       # Executive summary & action items
+```
+
+> ⚠️ **CRITICAL REQUIREMENT**: Do NOT rename or move folders inside `~/Downloads/CognitoCall/`. Cognito Call uses this exact directory layout for synchronized video playback, Karaoke word alignment, and session loading.
+
+---
+
+## 🗑️ Uninstallation Guide
+
+Cognito Call provides granular uninstallation scripts so you can delete the app, models, or everything independently.
+
+Run `./uninstall.sh` with your desired flag:
+
+| Command | Action |
+| :--- | :--- |
+| `./uninstall.sh --app-only` | Deletes `/Applications/Cognito Call.app` (keeps downloaded AI models and Python venv intact). |
+| `./uninstall.sh --models-only` | Clears `~/.cognitocall/models` and HuggingFace MLX cache (frees ~3 GB storage while keeping the desktop app). |
+| `./uninstall.sh --all` | Performs a full wipe (removes App, models, Python venv, and local metadata). |
+
+---
+
+## 🛠️ Tech Stack & Architecture
+
+- **Desktop UI**: Tauri v2 (Rust) + React 18 + TypeScript + Tailwind CSS
+- **Audio/Video Engine**: Web MediaRecorder API + Chrome Offscreen Document
+- **Local Speech-to-Text**: `mlx-whisper` (Quantized 4-bit Whisper on Apple Silicon)
+- **Local Diarization**: `simple-diarizer` (Spectral clustering & PyTorch embeddings)
+- **Local LLM Intelligence**: `mlx-lm` (`gemma-2-2b-it-4bit` Map-Reduce Chunked Pipeline)
+- **Fast-Path Captions**: Instant Google Meet live caption extraction via `MutationObserver`

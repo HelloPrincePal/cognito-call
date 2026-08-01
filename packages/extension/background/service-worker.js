@@ -6,6 +6,7 @@ let recording = false;
 let recordedTabId = null;
 let stopping = false;      // guards requestStop re-entry within a SW instance
 let stateCleared = false;  // single-fire guard so overlapping stop triggers notify only once
+let captionsBuffer = [];   // captures live Google Meet captions
 
 // ─── Message Router ───
 // The service worker is the central hub:
@@ -13,6 +14,15 @@ let stateCleared = false;  // single-fire guard so overlapping stop triggers not
 //   popup  ◀──  service-worker  ◀──  offscreen document
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    // Messages FROM content script (e.g. Google Meet captions)
+    if (request.action === 'captionSegment') {
+        if (recording && request.segment) {
+            captionsBuffer.push(request.segment);
+        }
+        sendResponse({ ok: true });
+        return true;
+    }
+
     // Messages FROM the offscreen recorder
     if (request.target === 'service-worker') {
         handleOffscreenMessage(request, sendResponse);
@@ -92,6 +102,34 @@ async function handlePopupMessage(request, sendResponse) {
 async function handleOffscreenMessage(request, sendResponse) {
     if (request.action === 'recordingSaved') {
         console.log(`[SW] Recording saved: ${request.filename} (${request.sizeMB} MB)`);
+        
+        // Save captions.json if captured during recording session
+        if (captionsBuffer.length > 0) {
+            const prefix = request.filename || "CognitoCall/";
+            const captionsData = {
+                provider: "google_meet",
+                segments: captionsBuffer.map((seg, idx) => ({
+                    speaker: seg.speaker || "Speaker",
+                    start: seg.timestamp || (idx * 5.0),
+                    end: (seg.timestamp || (idx * 5.0)) + 4.0,
+                    text: seg.text
+                }))
+            };
+            const jsonString = JSON.stringify(captionsData, null, 2);
+            const blobUrl = `data:application/json;charset=utf-8,${encodeURIComponent(jsonString)}`;
+            try {
+                await chrome.downloads.download({
+                    url: blobUrl,
+                    filename: `${prefix}captions.json`,
+                    saveAs: false
+                });
+                console.log('[SW] Successfully saved captions.json to:', `${prefix}captions.json`);
+            } catch (err) {
+                console.error('[SW] Failed to save captions.json:', err);
+            }
+            captionsBuffer = [];
+        }
+
         // Reset for offscreen-initiated stops (track onended / secondary timeout) that
         // never went through requestStop. Idempotent if requestStop already cleared.
         await clearRecordingState(request.reason || 'saved');
@@ -118,6 +156,7 @@ async function handleOffscreenMessage(request, sendResponse) {
 
 async function startRecording(tabId, sendResponse) {
     try {
+        captionsBuffer = []; // Reset caption buffer for new session
         // 1. Ensure offscreen document exists
         const hasDocument = await chrome.offscreen.hasDocument();
         if (!hasDocument) {

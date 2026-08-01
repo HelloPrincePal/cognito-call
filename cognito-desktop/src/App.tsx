@@ -3,6 +3,7 @@ import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { Home, Compass, ListTodo, Loader2, Edit2, ChevronRight, Search, Video } from 'lucide-react';
 import KaraokePlayer from './components/Player';
+import OnboardingModal from './components/OnboardingModal';
 
 interface Session {
   id: string;
@@ -20,6 +21,10 @@ function App() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
+  // User name onboarding states
+  const [userName, setUserName] = useState<string>(() => localStorage.getItem('cognito_user_name') || '');
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => !localStorage.getItem('cognito_user_name'));
+
   // Navigation states
   const [currentView, setCurrentView] = useState<'home' | 'meetings' | 'action_items'>('meetings');
 
@@ -28,10 +33,11 @@ function App() {
   const [editTitleText, setEditTitleText] = useState("");
 
   // Fetch all sessions
-  const fetchSessions = async (selectId?: string) => {
+  const fetchSessions = async (selectId?: string, overrideName?: string) => {
     try {
       setIsLoading(true);
-      const data = await invoke<Session[]>('get_sessions');
+      const activeName = overrideName || userName || 'Me';
+      const data = await invoke<Session[]>('get_sessions', { userName: activeName });
       setSessions(data);
       
       if (selectId) {
@@ -60,8 +66,23 @@ function App() {
       }
     });
 
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        invoke('cancel_transcription')
+          .then(() => {
+            fetchSessions();
+          })
+          .catch((err) => {
+            console.log("Cancel ignored or no process running:", err);
+          });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
     return () => {
       unlisten.then(f => f());
+      window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
 
@@ -426,6 +447,16 @@ function App() {
           </div>
         )}
       </div>
+
+      {showOnboarding && (
+        <OnboardingModal
+          onSave={(name) => {
+            setUserName(name);
+            setShowOnboarding(false);
+            fetchSessions(undefined, name);
+          }}
+        />
+      )}
     </div>
   );
 }

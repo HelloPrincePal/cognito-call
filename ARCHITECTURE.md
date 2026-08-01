@@ -43,11 +43,25 @@ The Chrome extension acts as the primary recording mechanism. It is built using 
  - **React + Vite + Tailwind CSS** (Frontend UI)
  - **Lucide React** (UI Iconography)
  
- ### How it works:
+### How it works:
  1. **Local Access:** The Rust backend scans the `~/Downloads/CognitoCall/` directory and exposes the sessions to the React frontend.
  2. **Video Streaming:** Tauri's `convertFileSrc` securely streams the local `.webm` files directly into the HTML5 `<video>` player.
- 3. **Process Orchestration:** When the user clicks "Generate AI Transcript", the Rust backend spawns a child process (`std::process::Command`), directly invoking the isolated Python virtual environment (`venv`) to execute the transcription sidecar.
- 4. **The Vertical Stack Layout & Karaoke UI:** Once the Python script completes, React parses the outputted `transcript.json`. The player is pinned at the top while the tabs (`Transcript`, `Notes`, `Action Items`) sit at the bottom. It maps the word-level timestamps to the video player's `currentTime`, highlighting the exact spoken word in real-time with a custom purple theme.
+ 3. **Responsive Sizing (1440x900 Aspect Ratio):** `lib.rs` inspects active monitor resolutions on launch and scales the window up to 90% of screen real estate while strictly enforcing a 1440:900 (16:10) aspect ratio.
+ 4. **First-Time User Onboarding:** On first launch, `OnboardingModal.tsx` prompts the user for their display name (e.g., *"Ram"*). The user name is passed to the backend transcriber to attribute local microphone segments and inform Gemma of user identity during meeting summarization.
+ 5. **Process Orchestration & Non-Blocking Cancellation:** The Rust backend spawns the Python sidecar process under the alias `cognito-assistant` (making it easily identifiable in Activity Monitor / Task Manager). Pressing `Escape` triggers non-blocking PID termination (`cancel_transcription`), and closing the app window executes an `on_window_event` hook to clean up sidecars without freezing the UI.
+ 6. **The Vertical Stack Layout & Karaoke UI:** Once the Python script completes, React parses the outputted `transcript.json`. The player is pinned at the top while the tabs (`Transcript`, `Notes`, `Action Items`) sit at the bottom. Clicking any sentence block jumps player playback directly to `segment.start`, highlighting the active sentence in real-time.
+
+---
+
+## 3. The Local AI Pipeline (`transcriber.py`)
+
+A 100% offline intelligence engine powered by Apple-native MLX frameworks (`mlx-whisper`, `mlx-lm`) and `simple-diarizer`.
+
+### Key Features:
+1. **Google Meet Live Captions Fast-Path:** If `captions.json` is captured by `meet-captions.js`, the pipeline bypasses heavy Whisper tab processing and uses live caption text directly.
+2. **Streaming Whisper Audio Windowing (3-Hour / 2 GB Call Support):** Slices audio into 15-minute streaming windows for recordings longer than 30 minutes. Keeps memory overhead constant at ~350 MB ($O(1)$ RAM profile) with `mx.metal.clear_cache()` flushes after each window.
+3. **Windowed Diarization:** Slices remote tab audio into 15-minute windows before spectral clustering, reducing matrix complexity from 207M floats to 2.5M floats (80x reduction).
+4. **Map-Reduce Sentence AI Restructuring:** Passes transcript chunks to `gemma-2-2b-it-4bit` to merge speech fragments into clean, punctuated sentences and attribute speakers based on conversational context. Overwrites `transcript.json` with a lightweight (~50 KB) sentence structure.
  5. **Dual Exporters:** Users can export the transcript line-by-sentence via the UI. Standard HTML5 Blobs are created on-the-fly, allowing downloads of a clean, segment-level JSON file or a fully formatted `.txt` script.
  
  ---
