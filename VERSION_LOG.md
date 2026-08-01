@@ -15,6 +15,7 @@ We follow the **X.Y.Z** semantic versioning format:
 
 | Version | Date | Summary | Key Impact |
 | :--- | :--- | :--- | :--- |
+| **v0.7.1** | 2026-08-01 | **WebM Duration & Cues Seeking Repair** | Pure JS EBML metadata remuxer in offscreen recorder to fix video/audio playability and enable seeking across all media players |
 | **v0.7.0** | 2026-08-01 | **Recording Safety Limits & Mic Copy Update** | 3-hour cap, tab-close auto-stop, toolbar REC badge, desktop notifications, and Chrome UX copy updates |
 | **v0.6.0** | 2026-06-13 | **Apple-Native MLX Migration** | Memory-efficient mlx-whisper backend + aggressive memory releases |
 | **v0.5.1** | 2026-05-30 | **Diagnostic Logging & Light Mode Refactor** | Stable Python logger (psutil) + premium light mode dashboard & segment exporters |
@@ -28,6 +29,17 @@ We follow the **X.Y.Z** semantic versioning format:
 | **v0.2.0** | 2026-03-15 | **Architecture & Audio Overhaul** | Complete re-architecture & Mic mixing |
 
 | **v0.1.0** | 2026-03-15 | **Initial Prototype** | Basic tab recording proof-of-concept |
+
+---
+
+## [v0.7.1] — 2026-08-01
+**Git Push Action:** "feat: fix WebM seeking and playability by injecting Cues index and Duration metadata"
+
+### 🚀 Implementation
+- **Pure JS WebM/EBML Remuxer:** Created `webm-fixer.js` to parse raw MediaRecorder WebM streams, calculate frame timecodes, and build a Matroska `Cues` index table.
+- **Duration Metadata Header Injection:** Calculated exact recording duration and injected updated `Duration` float into the `Info` segment payload.
+- **Seekable Output across Media Players:** Fixed video/audio scrubbing in VLC, QuickTime, Chrome, and Windows Media Player for `video.webm`, `tab.opus`, and `mic.opus`.
+- **Fail-Safe Fallback:** Wrapped remuxing in try-catch logic to preserve raw recordings in case of corrupt frames.
 
 ---
 

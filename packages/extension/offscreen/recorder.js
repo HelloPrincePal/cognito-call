@@ -17,6 +17,8 @@ let recordingState = 'idle'; // 'idle' | 'recording' | 'stopping'
 let capTimeoutId = null;      // secondary 3h safety net (independent of the SW alarm)
 let saving = false;           // guards saveRecordings against a double-run
 let stopReason = null;        // reason threaded to the recordingSaved message
+let recordingStartTime = 0;
+let recordingEndTime = 0;
 
 // ─── Message Listener ───
 // Only handle messages targeted at 'offscreen-doc' (from service worker)
@@ -187,6 +189,8 @@ async function startRecording(streamId, capMs) {
 
         // ── 7. Arm safety limits (only after a successful start) ──
         recordingState = 'recording';
+        recordingStartTime = Date.now();
+        recordingEndTime = 0;
         saving = false;
         stopReason = null;
 
@@ -259,6 +263,7 @@ async function stopRecording(reason) {
             return { success: true, alreadyStopped: true };
         }
         recordingState = 'stopping';
+        recordingEndTime = Date.now();
         stopReason = reason || 'manual';
 
         if (capTimeoutId) {
@@ -314,19 +319,32 @@ async function saveRecordings() {
     let totalSizeMB = 0;
     const prefix = workspacePrefix || "CognitoCall/";
     const reason = stopReason || 'saved';
+    const recordedDurationMs = (recordingStartTime && recordingEndTime)
+        ? Math.max(0, recordingEndTime - recordingStartTime)
+        : 0;
     let filesProcessed = 0;
     let filesToProcess = 0;
 
-    const processFile = (chunks, mimeType, filename) => {
+    const processFile = async (chunks, mimeType, filename) => {
         if (chunks.length === 0) return;
         filesToProcess++;
 
-        const blob = new Blob(chunks, { type: mimeType });
+        const rawBlob = new Blob(chunks, { type: mimeType });
+        let blob = rawBlob;
+
+        if (typeof fixWebmDurationAndCues === 'function') {
+            try {
+                blob = await fixWebmDurationAndCues(rawBlob, recordedDurationMs);
+            } catch (fixErr) {
+                console.warn('[Offscreen] WebM fixing failed, fallback to raw blob:', fixErr);
+            }
+        }
+
         const sizeMB = (blob.size / (1024 * 1024)).toFixed(2);
         totalSizeMB += parseFloat(sizeMB);
 
         const fullFilename = `${prefix}${filename}`;
-        console.log(`[Offscreen] Saving ${fullFilename} (${sizeMB} MB)`);
+        console.log(`[Offscreen] Saving fixed ${fullFilename} (${sizeMB} MB, duration: ${recordedDurationMs}ms)`);
 
         const blobUrl = URL.createObjectURL(blob);
 
@@ -357,9 +375,9 @@ async function saveRecordings() {
         }
     };
 
-    processFile(videoChunks, 'video/webm', 'video.webm');
-    processFile(tabAudioChunks, 'audio/webm', 'tab.opus');
-    processFile(micAudioChunks, 'audio/webm', 'mic.opus');
+    await processFile(videoChunks, 'video/webm', 'video.webm');
+    await processFile(tabAudioChunks, 'audio/webm', 'tab.opus');
+    await processFile(micAudioChunks, 'audio/webm', 'mic.opus');
 
     if (filesToProcess === 0) {
         console.warn('[Offscreen] No recorded chunks to save.');
@@ -381,6 +399,8 @@ function resetAfterSave() {
     tabAudioChunks = [];
     micAudioChunks = [];
     recordingState = 'idle';
+    recordingStartTime = 0;
+    recordingEndTime = 0;
     saving = false;
     stopReason = null;
 }

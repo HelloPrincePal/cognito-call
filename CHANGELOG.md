@@ -2,6 +2,27 @@
 
 ---
 
+## [2026-08-01 18:55 IST]
+
+### 💡 Summary
+Added an in-browser **WebM EBML metadata repair module** (`webm-fixer.js`) to the Chrome extension's offscreen recorder. Every recorded stream (`video.webm`, `tab.opus`, `mic.opus`) is now automatically remuxed upon completion to inject missing **`Duration` headers** and a Matroska **`Cues` keyframe byte-offset index table**, enabling smooth seeking and accurate playback across all standard video players (VLC, QuickTime, Chrome, Windows Media Player). Bumped the extension to **v0.7.1**.
+
+### 🚀 Why
+- **Broken Seeking in `MediaRecorder` Output:** Chrome's native `MediaRecorder` streams video/audio as a live EBML sequence. When recording ends, Chrome fails to write back total duration or build the keyframe index (`Cues` element). Media players interpret these raw files as infinite/unknown live streams, preventing fast-forwarding or scrubbing to specific timestamps.
+- **In-Browser Client-Side Remuxing:** Implemented a zero-dependency, pure JavaScript WebM/EBML parser and remuxer (`webm-fixer.js`) directly in the offscreen document. It indexes keyframes (`SimpleBlock`), calculates exact stream timecodes, encodes an EBML `Cues` cluster, updates the `Info` duration header, and updates the segment sizes prior to triggering downloads.
+- **Zero Heavy Native Dependencies:** Solved seeking entirely in client-side Web APIs without requiring users to install FFmpeg or run native backend binary processes.
+- **Fail-Safe Fallback:** If metadata remuxing encounters unexpected corrupt frames, the offscreen script catches the exception and falls back to downloading the raw blob so zero recorded data is lost.
+
+### 📄 Changed Files
+- `packages/extension/manifest.json`
+- `packages/extension/offscreen/webm-fixer.js` (New)
+- `packages/extension/offscreen/recorder.html`
+- `packages/extension/offscreen/recorder.js`
+- `VERSION_LOG.md`
+- `CHANGELOG.md`
+
+---
+
 ## [2026-08-01 13:32 IST]
 
 ### 💡 Summary
