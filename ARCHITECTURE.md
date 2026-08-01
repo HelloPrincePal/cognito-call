@@ -87,7 +87,76 @@ A 100% offline intelligence engine powered by Apple-native MLX frameworks (`mlx-
  
  ---
 
-## 4. Automated CI/CD Release Pipeline (GitHub Actions)
+## 4. 📁 System File Paths & Storage Architecture
+
+This section documents exact filesystem locations for all application bundles, meeting recordings, local LLM weights, and Python environments on your Mac.
+
+| Category | File / Directory Path | Purpose & Description |
+| :--- | :--- | :--- |
+| **Installed Desktop App** | `/Applications/Cognito Call.app` | Main macOS native application bundle executable. |
+| **Meeting Recordings & Video** | `~/Downloads/CognitoCall/` | Root directory storing all local meeting sessions. |
+| **Session Session Folder** | `~/Downloads/CognitoCall/YYYY-MM-DD_HH-MM-SS/` | Dedicated folder per meeting containing media & AI metadata. |
+| └─ *Full Screen/Tab Video* | `.../video.webm` | Full meeting screen/tab video recording with Matroska Cues keyframe index. |
+| └─ *Local Mic Audio* | `.../mic.opus` | Isolated local microphone audio stream (`user_name` attributed). |
+| └─ *Remote Participant Audio* | `.../tab.opus` | Isolated remote participants tab audio stream. |
+| └─ *Live Captions (Optional)* | `.../captions.json` | Google Meet live captions extracted via `meet-captions.js`. |
+| └─ *AI Transcript File* | `.../transcript.json` | Sentence-level structured transcript with timestamp ranges and speaker attribution. |
+| └─ *Executive Summary & Notes* | `.../summary.json` | AI generated meeting overview, detailed notes, and action items. |
+| └─ *Session Display Metadata* | `.../metadata.json` | Custom session title and meeting creation timestamps. |
+| └─ *Telemetry & Diagnostics* | `.../diagnostic.log` | Black-box execution log tracking CPU %, RAM peak usage, and timing per phase. |
+| **Downloaded LLMs & AI Models** | `~/.cache/huggingface/hub/` | Cache directory holding downloaded MLX & PyTorch model weights. |
+| └─ *Quantized Whisper Model* | `.../models--mlx-community--whisper-base-mlx-q4/` | 4-bit quantized Whisper speech recognition model (~150 MB). |
+| └─ *Quantized Gemma LLM* | `.../models--mlx-community--gemma-2-2b-it-4bit/` | 4-bit quantized Gemma 2B instruction-tuned LLM (~1.5 GB). |
+| └─ *Speaker Diarizer Model* | `.../models--simple-diarizer/` | PyTorch x-vector embedding model for speaker clustering (~120 MB). |
+| **App Data & Environment** | `~/.cognitocall/` | Cognito Call local user data and runtime configuration. |
+| └─ *Python Environment* | `~/.cognitocall/venv/` | Isolated Python 3 virtual environment containing MLX, PyTorch, & dependencies. |
+| └─ *User Settings & Name* | `~/.cognitocall/settings.json` | Saved user onboarding preferences (e.g. `user_name`). |
+
+---
+
+## 5. 🛠️ Developer Diagnostics & Live Background Monitoring
+
+Developers and advanced users can monitor background AI execution, inspect live hardware telemetry, or debug transcription jobs using these terminal commands:
+
+### 1. Watch Live AI Execution Telemetry & Progress Logs
+Stream the real-time `diagnostic.log` file from your active session to view CPU %, RAM consumption, phase timers (`time.perf_counter()`), and exact pipeline stage progress:
+
+```bash
+tail -f ~/Downloads/CognitoCall/*/diagnostic.log
+```
+
+### 2. Inspect Active Sidecar Process Status
+Check if the background `cognito-assistant` sidecar process is running, verify its PID, and inspect its current CPU/memory footprint:
+
+```bash
+ps aux | grep cognito-assistant
+```
+
+### 3. Stream Desktop Application Logs (Tauri + Rust + React)
+Launch the desktop application in developer mode to inspect live IPC messages, Rust event dispatches, and Webview console outputs:
+
+```bash
+cd cognito-desktop
+npm run tauri dev
+```
+
+### 4. Manually Terminate Running Sidecar Processes
+If an AI processing job hangs or needs to be manually stopped outside the app UI:
+
+```bash
+pkill -f cognito-assistant
+```
+
+### 5. Inspect Model Cache Sizes
+Check total disk space consumed by downloaded quantized MLX models (Whisper + Gemma):
+
+```bash
+du -sh ~/.cache/huggingface/hub/models--mlx-community*
+```
+
+---
+
+## 6. Automated CI/CD Release Pipeline (GitHub Actions)
 
 Extension ZIP distribution is managed 100% on GitHub through automated CI/CD workflows. No `.zip` archives are stored in git repository history.
 

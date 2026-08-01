@@ -32,6 +32,9 @@ function App() {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitleText, setEditTitleText] = useState("");
 
+  // Real-time AI progress tracking
+  const [progressMap, setProgressMap] = useState<Record<string, { percent: number; message: string }>>({});
+
   // Fetch all sessions
   const fetchSessions = async (selectId?: string, overrideName?: string) => {
     try {
@@ -57,10 +60,32 @@ function App() {
     const unlisten = listen('transcription-progress', (event) => {
       try {
         const data = JSON.parse(event.payload as string);
-        if (data.status === 'complete' || data.status === 'finished' || data.status === 'error') {
-          // Re-fetch sessions to update statuses and names
+        let percent = 15;
+        let msg = data.message || "Processing AI transcription...";
+
+        if (data.status === 'mic_transcribing') {
+          percent = 25;
+        } else if (data.status === 'captions_processing') {
+          percent = 45;
+        } else if (data.status === 'tab_transcribing') {
+          percent = 50;
+        } else if (data.status === 'diarization') {
+          percent = 70;
+        } else if (data.status === 'llm_processing' || data.status === 'intelligence') {
+          percent = 88;
+        } else if (data.status === 'complete' || data.status === 'finished') {
+          percent = 100;
+          fetchSessions();
+        } else if (data.status === 'error') {
+          percent = 0;
           fetchSessions();
         }
+
+        const sessId = data.session_id || 'active';
+        setProgressMap(prev => ({
+          ...prev,
+          [sessId]: { percent, message: msg }
+        }));
       } catch (e) {
         console.error("Error parsing progress event in App.tsx", e);
       }
@@ -405,42 +430,69 @@ function App() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {sessions.map((session) => (
-                    <div
-                      key={session.id}
-                      onClick={() => {
-                        setSelectedSession(session);
-                      }}
-                      className="bg-white border border-[#EBEBEB] rounded-xl p-5 hover:border-[#335CFF] hover:shadow-md cursor-pointer transition-all flex flex-col justify-between h-40 shadow-sm"
-                    >
-                      <div>
-                        {session.is_processing ? (
-                          <div className="flex flex-col gap-2 select-none">
-                            <div className="h-4 bg-gray-200 rounded animate-pulse w-2/3" />
-                            <div className="h-3 bg-gray-200 rounded animate-pulse w-full mt-2" />
-                            <div className="h-3 bg-gray-200 rounded animate-pulse w-4/5" />
+                  {sessions.map((session) => {
+                    const prog = progressMap[session.id] || progressMap['active'] || { percent: 20, message: "AI processing meeting transcript and notes..." };
+
+                    if (session.is_processing) {
+                      return (
+                        <div
+                          key={session.id}
+                          className="bg-gradient-to-br from-[#F8FAFC] to-white border border-[#335CFF]/30 rounded-xl p-5 shadow-sm flex flex-col justify-between h-44 select-none relative overflow-hidden"
+                        >
+                          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gray-100">
+                            <div 
+                              className="bg-gradient-to-r from-[#335CFF] to-[#8B5CF6] h-full transition-all duration-500 ease-out"
+                              style={{ width: `${prog.percent}%` }}
+                            />
                           </div>
-                        ) : (
-                          <>
+                          <div>
+                            <div className="flex justify-between items-center mb-2 mt-1">
+                              <span className="text-[11px] font-bold text-[#335CFF] uppercase tracking-wider flex items-center gap-1.5">
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                Processing {prog.percent}%
+                              </span>
+                              <span className="text-[10px] text-gray-400 font-mono bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">Press Esc to cancel</span>
+                            </div>
                             <h3 className="font-bold text-base text-[#101828] line-clamp-1" title={session.display_name}>
                               {session.display_name}
                             </h3>
-                            <p className="text-xs text-[#475467] mt-2 leading-relaxed line-clamp-2">
-                              {session.is_processing 
-                                ? "AI processing meeting transcript and notes..."
-                                : "Review meeting details, transcript, and notes."}
+                            <p className="text-xs text-gray-600 mt-2 leading-relaxed line-clamp-2 font-medium">
+                              {prog.message}
                             </p>
-                          </>
-                        )}
+                          </div>
+                          <div className="flex justify-between items-center pt-2 border-t border-gray-100 text-[11px] text-gray-400">
+                            <span>Stage {prog.percent < 40 ? '1/4' : prog.percent < 65 ? '2/4' : prog.percent < 90 ? '3/4' : '4/4'}</span>
+                            <span>{formatDate(session.created_at)}</span>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={session.id}
+                        onClick={() => {
+                          setSelectedSession(session);
+                        }}
+                        className="bg-white border border-[#EBEBEB] rounded-xl p-5 hover:border-[#335CFF] hover:shadow-md cursor-pointer transition-all flex flex-col justify-between h-44 shadow-sm"
+                      >
+                        <div>
+                          <h3 className="font-bold text-base text-[#101828] line-clamp-1" title={session.display_name}>
+                            {session.display_name}
+                          </h3>
+                          <p className="text-xs text-[#475467] mt-2 leading-relaxed line-clamp-2">
+                            Review meeting details, transcript, and notes.
+                          </p>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <div />
+                          <span className="text-[11px] text-[#475467] font-semibold uppercase tracking-wider bg-[#F9FAFB] px-2 py-0.5 rounded border border-[#EBEBEB]">
+                            {formatDate(session.created_at)}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <div />
-                        <span className="text-[11px] text-[#475467] font-semibold uppercase tracking-wider bg-[#F9FAFB] px-2 py-0.5 rounded border border-[#EBEBEB]">
-                          {formatDate(session.created_at)}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

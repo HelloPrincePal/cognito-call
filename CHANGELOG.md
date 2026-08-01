@@ -2,26 +2,35 @@
 
 ---
 
-## [2026-08-01 20:55 IST] - v1.2.0
+## [2026-08-01 21:30 IST] - v1.2.0
 
 ### 💡 Summary
-Consolidated major milestone update for public release: **Streaming Whisper & Diarization Audio Windowing for 3-Hour (2 GB) Recordings**, **Sentence-Level Context-Aware AI Restructuring**, **Google Meet Live Captions Capture**, **Tauri 1440x900 Responsive Sizing & Native Icons**, **First-Time User Onboarding & Name Personalization**, **Non-Blocking PID Process Cancellation on `Escape` key**, **Sidecar Process Renaming (`cognito-assistant`)**, and **Granular Installer/Uninstaller Scripts**.
+Consolidated major milestone release for public deployment: **Streaming 15-Minute Whisper & Diarization Audio Windowing for 3-Hour (2 GB) Recordings**, **Sentence-Level Context-Aware AI Restructuring**, **Google Meet Live Captions Capture**, **Tauri 1440x900 Responsive Aspect Ratio & Native Branding**, **First-Time User Onboarding & Personalization**, **Non-Blocking PID Process Cancellation (`Escape` Key)**, **Sidecar Process Renaming (`cognito-assistant`)**, **CI/CD Workflow Serialization & Icon Tracking**, and **Granular Installer/Uninstaller Shell Tools**.
 
-### 🚀 Key Additions & Optimizations
-- **Streaming 15-Minute Whisper Audio Windowing (`transcriber.py`):** Sliced Whisper transcription into 15-minute streaming windows for recordings longer than 30 minutes, keeping memory usage constant at ~350 MB ($O(1)$ RAM profile) and eliminating thermal throttling on MacBook Air.
+### 🚀 Detailed Enhancements & Fixes
+- **Streaming 15-Minute Whisper Audio Windowing (`transcriber.py`):** Sliced Whisper audio transcription into 15-minute streaming windows for recordings longer than 30 minutes. Slashes memory overhead on 3-hour calls from ~4.5 GB down to ~350 MB ($O(1)$ RAM profile) with GPU Metal memory cache flushes (`mx.metal.clear_cache()`) after each window.
 - **Windowed Diarization (`simple-diarizer`):** Sliced tab audio before spectral clustering, scaling matrix elements down from 207,360,000 floats to 2,560,000 floats (80x reduction in matrix complexity).
 - **Sentence-Level Context-Aware AI Restructuring:** Restructured fragmented speech into complete, well-punctuated sentences and deduced true participant names from conversational context, reducing `transcript.json` size by over 100x (~50 KB).
 - **Google Meet Live Captions Capture (`meet-captions.js`):** Added MutationObserver content script on `meet.google.com` to capture live captions and output `captions.json`, bypassing heavy Whisper tab processing when captions are enabled.
-- **Tauri 1440x900 Responsive Aspect Ratio & Icons:** Updated `lib.rs` monitor scaling to maintain 1440:900 (16:10) aspect ratio across screen resolutions, and generated native `.icns` and multi-res PNG icons from `Logo_icon.svg`.
+- **Tauri 1440x900 Responsive Aspect Ratio & Icons:** Updated `lib.rs` monitor scaling to maintain 1440:900 (16:10) aspect ratio across screen resolutions, and generated native `.icns` and multi-res PNG icons from `Logo_icon.svg`. Added all 52 generated icon files to Git tracking in `cognito-desktop/src-tauri/icons/` so headless CI runners compile without icon macro panics.
+- **CI/CD GitHub Actions Workflow Serialization (`release.yml`):**
+  - Chained `build-desktop-mac` to `build-and-release` (`needs: build-and-release`) so extension zip packaging and macOS app tarball building upload cleanly to the exact same release tag.
+  - Fixed dependency installation path by executing `npm install` directly inside `cognito-desktop/`.
+  - Removed unsupported legacy action inputs (`includeAppImage`, `includeDmg`).
+- **One-Line Installer Fallback (`install.sh`):** Added automatic fallback logic in `install.sh` to compile locally via `./build-local.sh` if a pre-built GitHub release binary has not yet been published.
+- **Granular Uninstaller (`uninstall.sh`):** Created cleanup tool with `--app-only`, `--models-only`, and `--all` nuclear options.
 - **First-Time User Onboarding (`OnboardingModal.tsx`):** Added modal prompting users for their display name (e.g. *"Ram"*), attributing local microphone segments to the user's name and passing identity context to Gemma.
 - **Non-Blocking PID Process Cancellation & Shutdown Hook:** Implemented non-blocking PID tracking for `Escape` key cancellation and added an `on_window_event` destroy listener in `lib.rs` to terminate background sidecars without UI deadlocks.
+- **In-App Real-Time Progress Bar (0% - 100%) & Stage Indicator (`App.tsx`):** Replaced generic pulse loading box with an animated gradient progress bar and stage status messaging (`25% - Mic`, `50% - Tab`, `70% - Diarization`, `88% - Gemma Restructuring`, `100% - Complete`), complete with a shortcut hint (*"Press Esc to cancel"*).
+- **Developer Diagnostic Commands & Background Monitoring (`ARCHITECTURE.md`):** Added terminal commands section documenting real-time telemetry streaming (`tail -f ~/Downloads/CognitoCall/*/diagnostic.log`), process status inspection (`ps aux | grep cognito-assistant`), dev server log streaming, and model cache inspection.
 - **Process Naming:** Renamed sidecar executable alias to `cognito-assistant` so Activity Monitor / Task Manager clearly identifies the process.
-- **Shell Installers & Documentation:** Created `install.sh`, `build-local.sh`, and `uninstall.sh` (--app-only, --models-only, --all) and updated `README.md`.
+- **README Metrics & Safari UX:** Replaced broken Repo Views badge with reliable `dwyl/hits` Shields.io endpoint (`img.shields.io/endpoint?url=https://hits.dwyl.com/...`) and added a note clarifying macOS Safari's automatic `.zip` file expansion upon download.
 
 ### 📄 Changed Files
 - `cognito-desktop/python/transcriber.py`
 - `cognito-desktop/src-tauri/src/lib.rs`
 - `cognito-desktop/src-tauri/tauri.conf.json`
+- `cognito-desktop/src-tauri/icons/*` (52 Icon Files Added to Git Tracking)
 - `cognito-desktop/src/App.tsx`
 - `cognito-desktop/src/components/OnboardingModal.tsx` (New)
 - `cognito-desktop/src/components/Player.tsx`
