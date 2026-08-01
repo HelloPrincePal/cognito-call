@@ -1,0 +1,50 @@
+name: Build & Publish Extension Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+    paths:
+      - 'packages/extension/manifest.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Extract Extension Version
+        id: version
+        run: |
+          VERSION=$(jq -r '.version' packages/extension/manifest.json)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Building extension zip version: $VERSION"
+
+      - name: Package Extension ZIP
+        run: |
+          cd packages/extension
+          zip -r "../../cognito-call-v${VERSION}.zip" . -x "*.DS_Store"
+          zip -r "../../cognito-call-extension.zip" . -x "*.DS_Store"
+          cd ../..
+
+      - name: Create / Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: false
+          files: |
+            cognito-call-v${{ steps.version.outputs.version }}.zip
+            cognito-call-extension.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

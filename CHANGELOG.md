@@ -13,11 +13,19 @@ Added an in-browser **WebM EBML metadata repair module** (`webm-fixer.js`) to th
 - **Zero Heavy Native Dependencies:** Solved seeking entirely in client-side Web APIs without requiring users to install FFmpeg or run native backend binary processes.
 - **Fail-Safe Fallback:** If metadata remuxing encounters unexpected corrupt frames, the offscreen script catches the exception and falls back to downloading the raw blob so zero recorded data is lost.
 
+- **Automated GitHub Release Packaging (CI/CD):** Created `.github/workflows/release.yml` to automatically build, package, and upload versioned extension zip files (`cognito-call-v${VERSION}.zip` and `cognito-call-extension.zip`) directly to GitHub Releases whenever `manifest.json` changes on `main` or a `v*` tag is pushed.
+- **Zero Local Zip Policy:** Purged all local `.zip` binaries from the workspace (`dist/*.zip`, `*.zip`) to ensure release archives are maintained exclusively on GitHub Releases.
+- **Direct GitHub Release Links in README:** Updated `README.md` to link directly to the automated GitHub Release ZIP download (`https://github.com/HelloPrincePal/cognito-call/releases/latest/download/cognito-call-extension.zip`).
+
 ### 📄 Changed Files
+- `.github/workflows/release.yml` (New)
 - `packages/extension/manifest.json`
 - `packages/extension/offscreen/webm-fixer.js` (New)
 - `packages/extension/offscreen/recorder.html`
 - `packages/extension/offscreen/recorder.js`
+- `README.md`
+- `ARCHITECTURE.md`
+- `file-structure.md`
 - `VERSION_LOG.md`
 - `CHANGELOG.md`
 

@@ -29,6 +29,7 @@ The Chrome extension acts as the primary recording mechanism. It is built using 
 3. **Session Packaging:** It automatically generates a timestamped directory (e.g., `~/Downloads/CognitoCall/2026-05-19_10-30-00/`) and saves the files into it.
 4. **Large File Handling (64MB Bypass):** Manifest V3 imposes a ~64MB limit on IPC messages (`chrome.runtime.sendMessage`). Instead of Base64 encoding massive video files (which causes silent failures on 30+ minute recordings), the offscreen document generates a localized `blob:chrome-extension://` URL. It passes this tiny URL string to the service worker, which then leverages `chrome.downloads.download` to pull the gigabytes of data directly from memory.
 5. **Local Unmuting:** Chrome inherently mutes the tab when `tabCapture` is active. The extension circumvents this by piping the `tabAudioStream` into a hidden `<audio>` element within the offscreen document, allowing the user to hear the meeting normally.
+6. **In-Browser WebM EBML Remuxing (`webm-fixer.js`):** Chrome's `MediaRecorder` outputs live EBML streams lacking `Duration` headers and Matroska `Cues` keyframe index tables. Prior to dispatching downloads, `recorder.js` passes recorded blobs through `webm-fixer.js`, which parses EBML elements in memory, indexes keyframe byte offsets, and injects `Duration` and `Cues` metadata so that exported `.webm` and `.opus` files are seekable in all standard video players.
 
 ---
 
@@ -71,6 +72,23 @@ The Chrome extension acts as the primary recording mechanism. It is built using 
  7. **Aggressive Memory Management:** To prevent memory pressure issues on Apple Silicon, the pipeline clears the GPU caches via `mlx.core.clear_cache()` and PyTorch's cache via `torch.mps.empty_cache()`, explicitly deleting intermediate objects and running garbage collection at each major phase boundary.
  
  ---
- 
- ## The Workflow summary:
- `Chrome Extension (webm)` ➡️ `Downloads Folder` ➡️ `Tauri (Rust) triggers Python` ➡️ `mlx-whisper + Clustering (transcript.json & diagnostic.log)` ➡️ `React (Vertical UI + Exporters)`
+
+## 4. Automated CI/CD Release Pipeline (GitHub Actions)
+
+Extension ZIP distribution is managed 100% on GitHub through automated CI/CD workflows. No `.zip` archives are stored in git repository history.
+
+### Key Tools:
+- **GitHub Actions** (`.github/workflows/release.yml`)
+- `softprops/action-gh-release@v2`
+
+### How it works:
+1. **Trigger:** Whenever `packages/extension/manifest.json` is modified on the `main` branch (or a release tag `v*` is pushed), GitHub Actions executes automatically.
+2. **Dynamic Packaging:** The workflow reads the version number dynamically from `manifest.json` via `jq`.
+3. **Artifact Generation:** It packages `packages/extension/` into `cognito-call-v${VERSION}.zip` and `cognito-call-extension.zip`.
+4. **GitHub Release Publication:** It calls `action-gh-release` to create or update the GitHub Release, attaching the zip assets directly to the GitHub Release page.
+5. **Direct User Download:** `README.md` links directly to the latest hosted GitHub Release URL (`https://github.com/HelloPrincePal/cognito-call/releases/latest/download/cognito-call-extension.zip`).
+
+---
+
+## The Workflow summary:
+`Chrome Extension (webm)` ➡️ `In-Browser Remuxing (Duration & Cues)` ➡️ `Downloads Folder` ➡️ `Tauri (Rust) triggers Python` ➡️ `mlx-whisper + Clustering (transcript.json & diagnostic.log)` ➡️ `React (Vertical UI + Exporters)`
