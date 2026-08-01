@@ -108,15 +108,32 @@ All meeting recordings, video files, and AI metadata are saved locally on your M
 
 ## 🗑️ Uninstallation Guide
 
-Cognito Call provides granular uninstallation scripts so you can delete the app, models, or everything independently.
+To completely remove or clean up Cognito Call from your Mac, open **Terminal** and copy-paste one of the one-line commands below:
 
-Run `./uninstall.sh` with your desired flag:
+### 1. Delete Everything (Full Nuclear Uninstall)
+Removes the Desktop Application, downloaded AI models (Whisper + Gemma), Python virtual environment, and settings:
 
-| Command | Action |
-| :--- | :--- |
-| `./uninstall.sh --app-only` | Deletes `/Applications/Cognito Call.app` (keeps downloaded AI models and Python venv intact). |
-| `./uninstall.sh --models-only` | Clears `~/.cognitocall/models` and HuggingFace MLX cache (frees ~3 GB storage while keeping the desktop app). |
-| `./uninstall.sh --all` | Performs a full wipe (removes App, models, Python venv, and local metadata). |
+```bash
+curl -fsSL https://raw.githubusercontent.com/HelloPrincePal/cognito-call/main/uninstall.sh | bash -s -- --all
+```
+
+---
+
+### 2. Delete Only the Desktop App (`/Applications/Cognito Call.app`)
+Removes the desktop application bundle from `/Applications/` while keeping your downloaded AI models intact:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/HelloPrincePal/cognito-call/main/uninstall.sh | bash -s -- --app-only
+```
+
+---
+
+### 3. Delete Only Downloaded AI Models (~3 GB Disk Space)
+Frees up ~3 GB of disk space by clearing downloaded Whisper, Gemma, and Diarizer model weights while keeping the app installed:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/HelloPrincePal/cognito-call/main/uninstall.sh | bash -s -- --models-only
+```
 
 ---
 
