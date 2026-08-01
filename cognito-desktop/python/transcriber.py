@@ -8,6 +8,31 @@ import psutil  # type: ignore
 import traceback
 from datetime import datetime
 
+# ============================================================
+# CRITICAL: Inject environment variables FIRST before any imports
+# so all child subprocesses (mlx_whisper, ffmpeg, torchaudio,
+# simple_diarizer) inherit a correct PATH and writable cache dir.
+# ============================================================
+_home = os.path.expanduser("~")
+_local_bin = os.path.join(_home, ".cognitocall", "bin")
+_brew_bins = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
+
+# Build a comprehensive PATH that includes all common ffmpeg locations
+_path_parts = os.environ.get("PATH", "").split(":")
+for _p in [_local_bin] + _brew_bins:
+    if _p not in _path_parts:
+        _path_parts.insert(0, _p)
+os.environ["PATH"] = ":".join(_path_parts)
+
+# Tell SpeechBrain/simple_diarizer to cache pretrained models in a writeable dir
+_speechbrain_cache = os.path.join(_home, ".cognitocall", "pretrained_models")
+os.makedirs(_speechbrain_cache, exist_ok=True)
+os.environ["SPEECHBRAIN_CACHE"] = _speechbrain_cache
+os.environ["SPEECHBRAIN_FETCH_STRATEGY"] = "copy"
+
+# Tell torch hub to also cache in a writeable location
+os.environ["TORCH_HOME"] = os.path.join(_home, ".cognitocall", "torch")
+
 import torch
 import mlx.core as mx
 import mlx_whisper
@@ -550,6 +575,7 @@ def main(folder_path, user_name="Me"):
             diar = None
             try:
                 emit_progress("tab_diarizing", "Running tuned diarization on remote audio...")
+                # SPEECHBRAIN_CACHE env var (set at top of file) redirects model downloads to ~/.cognitocall/pretrained_models
                 diar = Diarizer(embed_model='xvec', cluster_method='sc')
                 
                 # Check audio duration for long call windowing strategy
