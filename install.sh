@@ -38,13 +38,23 @@ TEMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
 echo "🔹 2. Downloading application bundle..."
-curl -fsSL "$RELEASE_URL" -o "$TEMP_DIR/app.tar.gz" || {
-  echo "⚠️ Could not download pre-built release. You can build from source using ./build-local.sh!"
-  exit 1
-}
-
-echo "🔹 3. Extracting into /Applications..."
-tar -xzf "$TEMP_DIR/app.tar.gz" -C "$INSTALL_DIR/"
+if curl -fsSL "$RELEASE_URL" -o "$TEMP_DIR/app.tar.gz" 2>/dev/null; then
+  echo "🔹 3. Extracting into /Applications..."
+  tar -xzf "$TEMP_DIR/app.tar.gz" -C "$INSTALL_DIR/"
+else
+  echo "ℹ️ Pre-built GitHub release binary is not published yet."
+  echo "🔹 Compiling Cognito Call directly on your Mac..."
+  if [ -f "./build-local.sh" ]; then
+    bash ./build-local.sh
+    exit 0
+  else
+    echo "🔹 Cloning repository and building locally..."
+    git clone https://github.com/${REPO_OWNER}/${REPO_NAME}.git "$TEMP_DIR/repo"
+    cd "$TEMP_DIR/repo"
+    bash ./build-local.sh
+    exit 0
+  fi
+fi
 
 echo "🔹 4. Setting execution permissions & clearing quarantine..."
 xattr -cr "$INSTALL_DIR/$APP_NAME" || true
