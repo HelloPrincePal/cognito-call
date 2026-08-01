@@ -158,6 +158,7 @@ fn spawn_transcription_job(
                 Ok(child) => child,
                 Err(e) => {
                     println!("Failed to start Python sidecar: {}", e);
+                    let _ = window.emit("transcription-progress", format!("{{\"status\": \"error\", \"message\": \"Failed to start Python transcriber: {}\"}}", e));
                     let mut is_t = is_transcribing_flag.lock().unwrap();
                     *is_t = false;
                     let mut cur = current_path_flag.lock().unwrap();

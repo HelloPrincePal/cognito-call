@@ -71,7 +71,10 @@ if command -v python3 &>/dev/null; then
     python3 -m venv "$DATA_DIR/venv"
   fi
   source "$DATA_DIR/venv/bin/activate"
-  pip install --quiet mlx-whisper mlx-lm simple-diarizer torchaudio psutil || true
+  echo "Installing Python dependencies (mlx-whisper, mlx-lm, simple-diarizer, torchaudio, psutil)..."
+  if ! pip install mlx-whisper mlx-lm simple-diarizer torchaudio psutil; then
+    echo "⚠️ Warning: Failed to install Python dependencies. Make sure python3-pip is configured and active."
+  fi
 fi
 
 echo "======================================================"
