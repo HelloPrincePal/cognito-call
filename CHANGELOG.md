@@ -2,6 +2,33 @@
 
 ---
 
+## [2026-08-02 10:23 IST]
+
+> **No version bump.** Runtime bug fix / reliability hardening; app version intentionally unchanged (see *Versioning Policy* in `VERSION_LOG.md`).
+
+### 💡 Summary
+Fixed an **infinite transcription retry loop**: on a machine where `ffmpeg` lived only in `~/.local/bin`, the desktop app could not find it (a GUI app doesn't inherit the shell `PATH`, and that directory wasn't on the sidecar's search path), so **every** run failed to decode audio, produced no transcript, yet exited "successfully" — causing the auto-runner to re-launch the same session every ~8 seconds forever. Fixed the root cause (ffmpeg discovery) and added two independent guards so a silent failure can never loop again.
+
+### 🚀 Detailed Enhancements & Fixes
+- **Root cause — ffmpeg not found by the GUI sidecar:** `~/.local/bin` (where a user/static ffmpeg commonly lives) was absent from the sidecar's `PATH`, and `~/.cognitocall/bin` was empty. The symptom was `FileNotFoundError: [Errno 2] No such file or directory: 'ffmpeg'` on every `mlx_whisper.audio.load_audio` call, cascading into failed transcription **and** diarization (`Couldn't find converted wav file`).
+- **Fix A — ffmpeg discovery (`transcriber.py`, `install.sh`, `build-local.sh`):**
+  - `transcriber.py` now adds `~/.local/bin` to the injected `PATH` (alongside `~/.cognitocall/bin` and the Homebrew/system dirs).
+  - Both installers now **always stage a copy of ffmpeg into `~/.cognitocall/bin`** (the app-controlled dir that's always on the sidecar's `PATH`) even when ffmpeg is already found on the shell `PATH` at install time — because "found in the Terminal during install" ≠ "found by the GUI app at runtime."
+- **Fix B — fail loudly instead of silently (`transcriber.py`):** Added a startup **preflight** (`shutil.which("ffmpeg")` → `sys.exit(1)` with a clear message if missing) and a **zero-segments guard** (if transcription produced nothing, `sys.exit(1)`). A non-zero exit makes the existing Rust handler write `failed.txt`, which stops the auto-runner from re-launching — turning a silent forever-loop into a single clear error.
+- **Fix C — loop guard in the desktop app (`lib.rs`):** The post-run handler now treats a "successful" exit that produced **no** `transcript.json` and **no** `summary.json` as a failure (writes `failed.txt`), so any future silent no-output run also can't loop. *(Requires an app rebuild to take effect; Fixes A + B work with the current binary once `transcriber.py` is updated.)*
+
+### ✅ Verification
+Diagnosed from the session log (8 identical failed runs in ~50 s, 32 ffmpeg errors). After the fix, running `transcriber.py` under a stripped `PATH=/usr/bin:/bin` (simulating the GUI environment) now logs `ffmpeg located at: …/.local/bin/ffmpeg` via the injected path, and an empty session exits non-zero with `[FATAL] No transcript segments…` — confirming both the discovery fix and the fail-fast guard. `bash -n` clean on both installers; `transcriber.py` compiles. The `lib.rs` change was not compile-verified (cold Rust cache) but mirrors the existing `failed.txt` pattern.
+
+### 📄 Changed Files
+- `cognito-desktop/python/transcriber.py`
+- `cognito-desktop/src-tauri/src/lib.rs`
+- `install.sh`
+- `build-local.sh`
+- `CHANGELOG.md`
+
+---
+
 ## [2026-08-02 08:54 IST]
 
 > **No version bump.** This is a code-cleanup / reliability pass, not a user-facing app change, so the app version is intentionally unchanged (see the *Versioning Policy* in `VERSION_LOG.md` — the changelog logs every change; version numbers only move on meaningful app/extension releases).

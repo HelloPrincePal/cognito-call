@@ -3,6 +3,7 @@ import json
 import re
 import os
 import sys
+import shutil
 import time
 import gc
 import psutil  # type: ignore
@@ -16,11 +17,12 @@ from datetime import datetime
 # ============================================================
 _home = os.path.expanduser("~")
 _local_bin = os.path.join(_home, ".cognitocall", "bin")
+_user_local_bin = os.path.join(_home, ".local", "bin")  # user/pip installs land here (e.g. a static ffmpeg)
 _brew_bins = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
 
 # Build a comprehensive PATH that includes all common ffmpeg locations
 _path_parts = os.environ.get("PATH", "").split(":")
-for _p in [_local_bin] + _brew_bins:
+for _p in [_local_bin, _user_local_bin] + _brew_bins:
     if _p not in _path_parts:
         _path_parts.insert(0, _p)
 os.environ["PATH"] = ":".join(_path_parts)
@@ -585,7 +587,18 @@ def main(folder_path, user_name="Me"):
     
     init_diagnostic_log(folder_path)
     log_diagnostic(folder_path, f"Starting MLX transcription process pipeline for user '{user_name}'...")
-    
+
+    # Preflight: ffmpeg is mandatory — both mlx-whisper and simple-diarizer shell out to it to
+    # decode audio. If it is not on PATH, fail loudly with a non-zero exit so the desktop app
+    # marks the session failed (writes failed.txt) instead of silently re-running it in a loop.
+    _ffmpeg = shutil.which("ffmpeg")
+    if _ffmpeg is None:
+        log_diagnostic(folder_path, "[FATAL] ffmpeg not found on PATH. Cannot decode audio — aborting. "
+                                    "Reinstall Cognito Call or install ffmpeg (e.g. 'brew install ffmpeg').")
+        emit_progress("error", "ffmpeg not found — cannot process audio. Please reinstall or install ffmpeg.")
+        sys.exit(1)
+    log_diagnostic(folder_path, f"ffmpeg located at: {_ffmpeg}")
+
     # Establish baseline with garbage collection first
     gc.collect()
     log_resources(folder_path, "Baseline")
@@ -871,7 +884,14 @@ def main(folder_path, user_name="Me"):
         
         emit_progress("transcription_complete", "Audio transcription complete. Loading local LLM...")
         gc.collect()
-        
+
+        # If transcription produced nothing at all, treat it as a hard failure (non-zero exit)
+        # so the desktop app writes failed.txt and stops auto-re-running the session forever.
+        if not final_segments:
+            log_diagnostic(folder_path, "[FATAL] No transcript segments were produced — transcription failed. Aborting with error status.")
+            emit_progress("error", "Transcription produced no output (check the recording and ffmpeg).")
+            sys.exit(1)
+
         # Run map-reduce intelligence generation
         generate_intelligence(final_segments, folder_path, user_name=user_name)
         

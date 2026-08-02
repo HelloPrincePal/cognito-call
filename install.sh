@@ -69,24 +69,35 @@ mkdir -p "$DATA_DIR/bin"
 curl -fsSL "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/cognito-desktop/python/transcriber.py" -o "$DATA_DIR/python/transcriber.py" 2>/dev/null || cp -f cognito-desktop/python/transcriber.py "$DATA_DIR/python/transcriber.py" 2>/dev/null || true
 curl -fsSL "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/cognito-desktop/python/requirements.txt" -o "$DATA_DIR/python/requirements.txt" 2>/dev/null || cp -f cognito-desktop/python/requirements.txt "$DATA_DIR/python/requirements.txt" 2>/dev/null || true
 
-# Install FFmpeg if missing globally
-if ! command -v ffmpeg &>/dev/null; then
+# Ensure FFmpeg is available AND staged into ~/.cognitocall/bin (the app's runtime PATH).
+# CRITICAL: "found on the shell PATH during install" != "found by the GUI app at runtime" —
+# a GUI app launched from Finder/Spotlight does NOT inherit your Terminal's PATH. So we always
+# place a copy where the sidecar looks, even if ffmpeg is already installed elsewhere.
+FFMPEG_BIN="$(command -v ffmpeg 2>/dev/null || true)"
+if [ -z "$FFMPEG_BIN" ]; then
   echo "🔹 Installing FFmpeg (required for audio decoding)..."
   if command -v brew &>/dev/null; then
     echo "Installing FFmpeg via Homebrew..."
     brew install ffmpeg --quiet || true
+    FFMPEG_BIN="$(command -v ffmpeg 2>/dev/null || true)"
   fi
+fi
 
-  # Fallback to static bin download
-  if ! command -v ffmpeg &>/dev/null && [ ! -f "$DATA_DIR/bin/ffmpeg" ]; then
-    echo "Downloading static FFmpeg binary for macOS..."
-    if curl -fsSL "https://evermeet.cx/ffmpeg/getrelease/zip" -o "$TEMP_DIR/ffmpeg.zip"; then
-      unzip -o -q "$TEMP_DIR/ffmpeg.zip" -d "$DATA_DIR/bin" || true
-      chmod +x "$DATA_DIR/bin/ffmpeg" 2>/dev/null || true
-      echo "FFmpeg installed locally at $DATA_DIR/bin/ffmpeg."
-    else
-      echo "⚠️ Warning: Failed to download static FFmpeg. Please install it manually: 'brew install ffmpeg'."
-    fi
+# Stage a copy into the app-controlled bin so the desktop app can always find it.
+if [ -n "$FFMPEG_BIN" ] && [ ! -x "$DATA_DIR/bin/ffmpeg" ]; then
+  cp -f "$FFMPEG_BIN" "$DATA_DIR/bin/ffmpeg" 2>/dev/null && chmod +x "$DATA_DIR/bin/ffmpeg" 2>/dev/null \
+    && echo "Staged FFmpeg into $DATA_DIR/bin/ffmpeg."
+fi
+
+# Last resort: download a static build directly into the app bin.
+if [ ! -x "$DATA_DIR/bin/ffmpeg" ]; then
+  echo "Downloading static FFmpeg binary for macOS..."
+  if curl -fsSL "https://evermeet.cx/ffmpeg/getrelease/zip" -o "$TEMP_DIR/ffmpeg.zip"; then
+    unzip -o -q "$TEMP_DIR/ffmpeg.zip" -d "$DATA_DIR/bin" || true
+    chmod +x "$DATA_DIR/bin/ffmpeg" 2>/dev/null || true
+    echo "FFmpeg installed locally at $DATA_DIR/bin/ffmpeg."
+  else
+    echo "⚠️ Warning: Failed to obtain FFmpeg. Please install it manually: 'brew install ffmpeg'."
   fi
 fi
 

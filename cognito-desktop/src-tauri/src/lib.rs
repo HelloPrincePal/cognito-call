@@ -236,16 +236,21 @@ fn spawn_transcription_job(
         *transcribing_flag = false;
         
         if let Some(status) = status_res {
-            if status.success() {
+            // Guard against silent failures: a run that exits 0 but produced no transcript or
+            // summary must NOT be re-run forever by the auto-runner — mark it failed too.
+            let produced_output = std::path::Path::new(&folder_path).join("transcript.json").exists()
+                || std::path::Path::new(&folder_path).join("summary.json").exists();
+            if status.success() && produced_output {
                 window.emit("transcription-progress", "{\"status\": \"finished\", \"message\": \"Transcription completed successfully\"}").unwrap();
             } else {
-                // Write failed.txt marker so we don't loop endlessly
+                // Write failed.txt marker so we don't loop endlessly (covers non-zero exit AND
+                // a "successful" exit that produced nothing).
                 let failed_txt_path = std::path::Path::new(&folder_path).join("failed.txt");
                 if let Ok(mut fp) = fs::File::create(&failed_txt_path) {
                     use std::io::Write;
                     let _ = fp.write_all(b"failed");
                 }
-                window.emit("transcription-progress", "{\"status\": \"error\", \"message\": \"Python sidecar process failed or exited with error.\"}").unwrap();
+                window.emit("transcription-progress", "{\"status\": \"error\", \"message\": \"Transcription failed or produced no output.\"}").unwrap();
             }
         }
     });

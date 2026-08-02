@@ -52,25 +52,37 @@ if command -v python3 &>/dev/null; then
   deactivate 2>/dev/null || true
 fi
 
-# Install FFmpeg if missing globally
-if ! command -v ffmpeg &>/dev/null; then
+# Ensure FFmpeg is available AND staged into ~/.cognitocall/bin (the app's runtime PATH).
+# A GUI app launched from Finder/Spotlight does NOT inherit your Terminal's PATH, so we always
+# place a copy where the sidecar looks, even if ffmpeg is already installed elsewhere.
+FFMPEG_BIN="$(command -v ffmpeg 2>/dev/null || true)"
+if [ -z "$FFMPEG_BIN" ]; then
   echo "🔹 Installing FFmpeg (required for audio decoding)..."
   if command -v brew &>/dev/null; then
     echo "Installing FFmpeg via Homebrew..."
     brew install ffmpeg --quiet || true
+    FFMPEG_BIN="$(command -v ffmpeg 2>/dev/null || true)"
   fi
+fi
 
-  # Fallback to static bin download
-  if ! command -v ffmpeg &>/dev/null && [ ! -f "$DATA_DIR/bin/ffmpeg" ]; then
-    echo "Downloading static FFmpeg binary for macOS..."
-    TEMP_DIR=$(mktemp -d)
-    if curl -fsSL "https://evermeet.cx/ffmpeg/getrelease/zip" -o "$TEMP_DIR/ffmpeg.zip"; then
-      unzip -o -q "$TEMP_DIR/ffmpeg.zip" -d "$DATA_DIR/bin" || true
-      chmod +x "$DATA_DIR/bin/ffmpeg" 2>/dev/null || true
-      echo "FFmpeg installed locally at $DATA_DIR/bin/ffmpeg."
-    fi
-    rm -rf "$TEMP_DIR"
+# Stage a copy into the app-controlled bin so the desktop app can always find it.
+if [ -n "$FFMPEG_BIN" ] && [ ! -x "$DATA_DIR/bin/ffmpeg" ]; then
+  cp -f "$FFMPEG_BIN" "$DATA_DIR/bin/ffmpeg" 2>/dev/null && chmod +x "$DATA_DIR/bin/ffmpeg" 2>/dev/null \
+    && echo "Staged FFmpeg into $DATA_DIR/bin/ffmpeg."
+fi
+
+# Last resort: download a static build directly into the app bin.
+if [ ! -x "$DATA_DIR/bin/ffmpeg" ]; then
+  echo "Downloading static FFmpeg binary for macOS..."
+  TEMP_DIR=$(mktemp -d)
+  if curl -fsSL "https://evermeet.cx/ffmpeg/getrelease/zip" -o "$TEMP_DIR/ffmpeg.zip"; then
+    unzip -o -q "$TEMP_DIR/ffmpeg.zip" -d "$DATA_DIR/bin" || true
+    chmod +x "$DATA_DIR/bin/ffmpeg" 2>/dev/null || true
+    echo "FFmpeg installed locally at $DATA_DIR/bin/ffmpeg."
+  else
+    echo "⚠️ Warning: Failed to obtain FFmpeg. Please install it manually: 'brew install ffmpeg'."
   fi
+  rm -rf "$TEMP_DIR"
 fi
 
 echo "🔹 3. Building Tauri Desktop Application..."
