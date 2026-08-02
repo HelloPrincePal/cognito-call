@@ -23,6 +23,16 @@ fi
 
 DATA_DIR="$HOME/.cognitocall"
 
+# Model quality tier: "lite" (default, MacBook Air friendly) or "pro" (bigger, higher-quality
+# models that need more RAM). Pass --pro (or --quality) to select the pro tier.
+MODEL_TIER="lite"
+for _arg in "$@"; do
+  case "$_arg" in
+    --pro|--quality|--high) MODEL_TIER="pro" ;;
+    --lite|--fast|--air) MODEL_TIER="lite" ;;
+  esac
+done
+
 echo "🔹 1. Installing Node dependencies..."
 npm install
 
@@ -30,6 +40,32 @@ echo "🔹 2. Setting up local AI Python environment (~/.cognitocall)..."
 mkdir -p "$DATA_DIR/models"
 mkdir -p "$DATA_DIR/python"
 mkdir -p "$DATA_DIR/bin"
+
+# Record the selected model tier so the Python sidecar knows which models to load, and keep
+# only that tier's weights on disk (models download lazily into ~/.cache/huggingface/hub; we
+# remove the other tier's cached models so the machine never holds both sets at once).
+HF_HUB="$HOME/.cache/huggingface/hub"
+_offload_model() { for _m in "$@"; do rm -rf "$HF_HUB/models--mlx-community--$_m" 2>/dev/null || true; done; }
+if [ "$MODEL_TIER" = "pro" ]; then
+  echo "🔹 Model tier: PRO — whisper-large-v3-turbo + Qwen2.5-14B (best quality for 24 GB+ Macs; first run downloads ~10 GB)."
+  cat > "$DATA_DIR/models.json" <<'EOF'
+{
+  "whisper_model": "mlx-community/whisper-large-v3-turbo",
+  "llm_model": "mlx-community/Qwen2.5-14B-Instruct-4bit"
+}
+EOF
+  _offload_model "whisper-base-mlx-q4" "gemma-2-2b-it-4bit"
+else
+  echo "🔹 Model tier: LITE — whisper-base + gemma-2b (fast, MacBook Air friendly)."
+  cat > "$DATA_DIR/models.json" <<'EOF'
+{
+  "whisper_model": "mlx-community/whisper-base-mlx-q4",
+  "llm_model": "mlx-community/gemma-2-2b-it-4bit"
+}
+EOF
+  _offload_model "whisper-large-v3-turbo" "Qwen2.5-14B-Instruct-4bit"
+fi
+
 cp -f cognito-desktop/python/transcriber.py "$DATA_DIR/python/transcriber.py"
 cp -f cognito-desktop/python/requirements.txt "$DATA_DIR/python/requirements.txt"
 

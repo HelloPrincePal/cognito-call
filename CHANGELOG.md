@@ -2,6 +2,35 @@
 
 ---
 
+## [2026-08-02 13:39 IST]
+
+> **No version bump.** Feature + quality hardening; app version intentionally unchanged (see *Versioning Policy* in `VERSION_LOG.md`).
+
+### 💡 Summary
+Added a **selectable model quality tier** so users can trade speed for accuracy based on their Mac's RAM, and fixed the pipeline bugs that were garbling AI notes. A one-line-installer flag now picks between a **Lite** tier (fast, MacBook-Air-friendly) and a **Pro** tier (larger, much higher-quality models). Diagnosed from a real 2h55m run whose transcript was fragmented and whose `summary.json` contained a raw, broken JSON blob.
+
+### 🚀 Detailed Enhancements & Fixes
+- **Selectable model tiers (`install.sh`, `build-local.sh`, `transcriber.py`):** The installers now accept `--pro` (a.k.a. `--quality`) and write `~/.cognitocall/models.json`; the sidecar reads it at startup via a new `_load_model_config()` and loads those models (falling back to the Lite defaults if the file is absent). Switchable anytime by re-running the installer.
+  - **Lite** (default): `whisper-base-mlx-q4` + `gemma-2-2b-it-4bit` — fast, runs on 8–16 GB.
+  - **Pro** (`--pro`): `whisper-large-v3-turbo` + `Qwen2.5-14B-Instruct-4bit` — the best models that run comfortably on a 24 GB Mac; far more accurate transcripts and reliable JSON notes. Needs more RAM and a ~10 GB first-run download.
+  - The chosen tier is logged per run (`Model tier -> Whisper: … | LLM: …`).
+- **Per-tier storage management (`install.sh`, `build-local.sh`):** Models still download lazily into `~/.cache/huggingface/hub` (Lite ≈ 1.5 GB, Pro ≈ 10 GB), but the installer now **removes the other tier's cached weights** on install — so switching to Pro offloads the Lite models and vice-versa, and the machine never holds both sets at once. `uninstall.sh --models-only` clears everything.
+- **Fixed garbled summaries (`transcriber.py`):** When the LLM's final JSON was unrepairable, the fallback dumped the entire raw (often broken) blob into `executive_summary`. It now regex-extracts the human-readable `executive_summary` text from the raw output, so `summary.json` shows a clean summary instead of a JSON dump. (Verified on the exact broken output from the 2h55m run.)
+- **Killed the schema-placeholder echo (`transcriber.py`):** A weak LLM sometimes copied the map prompt's JSON example verbatim, so `"Cleaned complete sentence."` was appearing as real transcript segments. The refinement step now drops any segment matching the known placeholder text, and the example wording was changed.
+- **`README.md` — complete rewrite:** Restructured the whole README around a new user's first visit: a short intro (what it is / why), then **The Problem** and **The Solution**, then install guides (**extension**, then **app** with both tiers), then **How the Extension Works** and **How the App Works** (linked to from the install steps), and finally a single **Configuration & Management** section consolidating every `curl`/`bash` command (tier switching, updating, uninstalling) plus a storage-locations table. Replaced the previous scattered layout; added an in-page table of contents and anchor links.
+
+### 🔎 Root-cause notes (for reference)
+- The audio was **not** the problem — both `mic` (−24 dB) and `tab` (−22.8 dB) measured as normal speech. The quality ceiling was the deliberately-tiny Lite models: `whisper-base` fragments real speech, and `gemma-2-2b` can't reliably emit the nested JSON the map/reduce prompts ask for (only 10 of 705 segments got AI-refined; 2 of 6 chunks failed JSON parse). The Pro tier addresses both.
+
+### 📄 Changed Files
+- `cognito-desktop/python/transcriber.py`
+- `install.sh`
+- `build-local.sh`
+- `README.md`
+- `CHANGELOG.md`
+
+---
+
 ## [2026-08-02 10:23 IST]
 
 > **No version bump.** Runtime bug fix / reliability hardening; app version intentionally unchanged (see *Versioning Policy* in `VERSION_LOG.md`).

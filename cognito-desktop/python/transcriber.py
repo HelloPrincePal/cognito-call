@@ -62,6 +62,41 @@ huggingface_hub.hf_hub_download = patched_hf_hub_download
 
 from simple_diarizer.diarizer import Diarizer
 
+
+def _load_model_config():
+    """Select the Whisper + LLM model IDs for this install.
+
+    The installer writes ~/.cognitocall/models.json to choose a quality tier. If it is
+    absent, we fall back to the lightweight defaults that run comfortably on a MacBook Air.
+    """
+    cfg = {
+        "whisper_model": "mlx-community/whisper-base-mlx-q4",
+        "llm_model": "mlx-community/gemma-2-2b-it-4bit",
+    }
+    try:
+        cfg_path = os.path.join(os.path.expanduser("~"), ".cognitocall", "models.json")
+        if os.path.exists(cfg_path):
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if data.get("whisper_model"):
+                cfg["whisper_model"] = str(data["whisper_model"]).strip()
+            if data.get("llm_model"):
+                cfg["llm_model"] = str(data["llm_model"]).strip()
+    except Exception:
+        pass
+    return cfg
+
+
+_MODEL_CFG = _load_model_config()
+
+# Placeholder sentences from the map prompt's JSON example — a weak model sometimes echoes
+# these verbatim when a chunk has little real speech; drop them so they don't pollute output.
+_REFINE_PLACEHOLDERS = {
+    "cleaned complete sentence.",
+    "the full cleaned-up sentence goes here.",
+}
+
+
 def emit_progress(status, message):
     # Print JSON directly to stdout for Rust to intercept and emit to frontend
     print(json.dumps({"status": status, "message": message}), flush=True)
@@ -257,7 +292,7 @@ def generate_intelligence(final_segments, folder_path, user_name="Me"):
     # transcript's raw fidelity of what was refined.
     final_segments = collapse_consecutive_duplicates(final_segments)
 
-    model_id = "mlx-community/gemma-2-2b-it-4bit"
+    model_id = _MODEL_CFG["llm_model"]
     log_diagnostic(folder_path, f"Loading LLM {model_id} for user '{user_name}' transcript refinement and map-reduce intelligence...")
 
     # Group segments into chronological chunks (~15 minutes = 900 seconds per chunk)
@@ -320,7 +355,7 @@ def generate_intelligence(final_segments, folder_path, user_name="Me"):
                 "{\n"
                 "  \"title\": \"3-to-5 word title\",\n"
                 "  \"refined_sentences\": [\n"
-                "    {\"speaker\": \"Speaker Name\", \"start\": 0.0, \"end\": 4.5, \"text\": \"Cleaned complete sentence.\"}\n"
+                "    {\"speaker\": \"Speaker Name\", \"start\": 0.0, \"end\": 4.5, \"text\": \"The full cleaned-up sentence goes here.\"}\n"
                 "  ],\n"
                 "  \"summary\": \"Concise paragraph summary of this section.\",\n"
                 "  \"action_items\": [\"Action item description\"]\n"
@@ -364,6 +399,9 @@ def generate_intelligence(final_segments, folder_path, user_name="Me"):
             if isinstance(refined_sents, list) and len(refined_sents) > 0:
                 for r_seg in refined_sents:
                     if isinstance(r_seg, dict) and "text" in r_seg:
+                        _txt = str(r_seg.get("text", "")).strip()
+                        if _txt.lower() in _REFINE_PLACEHOLDERS:
+                            continue  # model echoed the schema example instead of real text
                         master_refined_segments.append({
                             "id": f"seg_{len(master_refined_segments)}",
                             "speaker": str(r_seg.get("speaker", "Speaker")).strip() or "Speaker",
@@ -452,11 +490,15 @@ def generate_intelligence(final_segments, folder_path, user_name="Me"):
                 intelligence_data = salvaged
                 log_diagnostic(folder_path, "[INFO] Final response JSON was truncated/malformed; salvaged successfully.")
             else:
+                # Even when the JSON is unrepairable, pull the human-readable summary out of the
+                # raw model output instead of dumping the whole broken blob into the notes.
+                _m = re.search(r'"executive_summary"\s*:\s*"([^"]{20,})"', clean_response)
+                _exec = (_m.group(1) if _m else clean_response[:500]).replace('\\n', ' ').replace('\\"', '"').strip()
                 intelligence_data = {
                     "title": "Meeting Summary",
                     "notes": {
-                        "executive_summary": clean_response[:300],
-                        "detailed_summary": [{"phase": "Full Call", "content": clean_response}]
+                        "executive_summary": _exec,
+                        "detailed_summary": [{"phase": "Full Call", "content": _exec}]
                     },
                     "action_items": []
                 }
@@ -604,7 +646,8 @@ def main(folder_path, user_name="Me"):
     log_resources(folder_path, "Baseline")
     
     # MLX Quantized Whisper Model
-    model_name = "mlx-community/whisper-base-mlx-q4"
+    model_name = _MODEL_CFG["whisper_model"]
+    log_diagnostic(folder_path, f"Model tier -> Whisper: {model_name} | LLM: {_MODEL_CFG['llm_model']}")
     
     mic_path = os.path.join(folder_path, "mic.opus")
     if not os.path.exists(mic_path):
