@@ -1,5 +1,6 @@
 import argparse
 import json
+import re
 import os
 import sys
 import time
@@ -36,6 +37,8 @@ os.environ["TORCH_HOME"] = os.path.join(_home, ".cognitocall", "torch")
 import torch
 import mlx.core as mx
 import mlx_whisper
+import mlx_whisper.audio  # ffmpeg-backed decode to 16kHz numpy; used for torchaudio-free windowing
+import soundfile  # write 16kHz mono PCM WAV slices for windowed diarization
 
 # Bypass interactive PyTorch Hub trusted repo warnings for headless execution
 try:
@@ -126,9 +129,119 @@ def log_resources(folder_path, point_label):
     except Exception as e:
         log_diagnostic(folder_path, f"[ERROR] Failed to log hardware resources at '{point_label}': {e}")
 
+def salvage_json(text):
+    """Best-effort recovery of a truncated/malformed JSON object from an LLM response.
+
+    Returns a dict on success, or None if unrecoverable. Handles the common failure
+    mode where generation hit max_tokens mid-object: trailing commas, an unterminated
+    string, and unclosed { / [ brackets.
+    """
+    if not text:
+        return None
+    start = text.find("{")
+    if start == -1:
+        return None
+    s = text[start:].strip()
+    decoder = json.JSONDecoder()
+
+    # 1. Fast path: parse a leading JSON object, ignoring any trailing prose after it.
+    try:
+        obj, _ = decoder.raw_decode(s)
+        if isinstance(obj, dict):
+            return obj
+    except Exception:
+        pass
+
+    # 2. Strip trailing commas before a closer (e.g. `... ,\n}` or `..., ]`).
+    s = re.sub(r",(\s*[}\]])", r"\1", s)
+
+    # 3. Scan to find unterminated string + unclosed brackets, tracking string state.
+    stack = []
+    in_str = False
+    escaped = False
+    for ch in s:
+        if in_str:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch in "{[":
+            stack.append(ch)
+        elif ch == "}":
+            if stack and stack[-1] == "{":
+                stack.pop()
+        elif ch == "]":
+            if stack and stack[-1] == "[":
+                stack.pop()
+
+    repaired = s
+    if in_str:
+        repaired += '"'  # close a dangling string
+    # Drop any trailing comma left after closing the string, then close open brackets.
+    repaired = re.sub(r",\s*$", "", repaired.rstrip())
+    for opener in reversed(stack):
+        repaired += "}" if opener == "{" else "]"
+
+    try:
+        obj, _ = decoder.raw_decode(repaired)
+        return obj if isinstance(obj, dict) else None
+    except Exception:
+        return None
+
+
+def is_hallucinated_segment(seg):
+    """Conservative detector for Whisper silence-hallucination (repeat-loops / no-speech).
+
+    Defaults to False (keep the segment) — only returns True on a clear signal, and the
+    caller restricts it to Whisper sources (mic/tab) so captions/refined text pass through.
+    """
+    # Strong no-speech signal from Whisper's own probability, when present.
+    try:
+        if float(seg.get("no_speech_prob", 0.0)) > 0.85:
+            return True
+    except (TypeError, ValueError):
+        pass
+
+    text = str(seg.get("text", "")).strip()
+    tokens = text.split()
+    if len(tokens) >= 6:
+        lowered = [t.lower() for t in tokens]
+        unique_ratio = len(set(lowered)) / len(lowered)
+        # Degenerate repeat-loop: very few unique tokens (e.g. "I. I. I. ..." or "3.5-3.5").
+        if unique_ratio < 0.3 or len(set(lowered)) == 1:
+            return True
+    return False
+
+
+def collapse_consecutive_duplicates(segments):
+    """Merge runs of consecutive segments that share a speaker and identical text into one.
+
+    Repetitive back-channel ("Yes." repeated dozens of times) otherwise floods the LLM
+    prompt and pushes the small model into a generation repeat-loop. The merged segment
+    keeps the first start and the last end so the timeline stays intact.
+    """
+    collapsed = []
+    for seg in segments:
+        text_norm = str(seg.get("text", "")).strip().lower()
+        if collapsed and text_norm:
+            prev = collapsed[-1]
+            if (str(prev.get("text", "")).strip().lower() == text_norm
+                    and prev.get("speaker") == seg.get("speaker")):
+                prev["end"] = seg.get("end", prev.get("end"))  # extend the run
+                continue
+        collapsed.append(dict(seg))
+    return collapsed
+
+
 def generate_intelligence(final_segments, folder_path, user_name="Me"):
     try:
         import mlx_lm
+        from mlx_lm.sample_utils import make_sampler, make_logits_processors
     except ImportError:
         log_diagnostic(folder_path, "[ERROR] mlx-lm library not installed. Skipping intelligence generation.")
         return
@@ -136,6 +249,11 @@ def generate_intelligence(final_segments, folder_path, user_name="Me"):
     if not final_segments:
         log_diagnostic(folder_path, "[WARNING] No transcript segments available for intelligence generation.")
         return
+
+    # Collapse runs of identical back-channel ("Yes." x40) so the repetitive input doesn't
+    # push Gemma into a generation repeat-loop. Only affects the LLM prompt, not the saved
+    # transcript's raw fidelity of what was refined.
+    final_segments = collapse_consecutive_duplicates(final_segments)
 
     model_id = "mlx-community/gemma-2-2b-it-4bit"
     log_diagnostic(folder_path, f"Loading LLM {model_id} for user '{user_name}' transcript refinement and map-reduce intelligence...")
@@ -170,6 +288,11 @@ def generate_intelligence(final_segments, folder_path, user_name="Me"):
     try:
         load_res = mlx_lm.load(model_id)
         model, tokenizer = load_res[0], load_res[1]
+
+        # Low-temperature sampling + repetition penalty to stop the small model from
+        # degenerating into a repeat-loop (e.g. emitting "Yes." until it exhausts max_tokens).
+        gen_sampler = make_sampler(temp=0.3)
+        gen_logits_processors = make_logits_processors(repetition_penalty=1.3, repetition_context_size=64)
 
         # MAP STAGE: Process each chunk for sentence-level refinement + local summary
         for idx, chunk in enumerate(chunks, 1):
@@ -207,7 +330,8 @@ def generate_intelligence(final_segments, folder_path, user_name="Me"):
             formatted_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)  # type: ignore
 
             log_diagnostic(folder_path, f"Processing sentence refinement & summary for chunk {idx}/{total_chunks}...")
-            response = mlx_lm.generate(model, tokenizer, prompt=formatted_prompt, max_tokens=384, verbose=False)
+            response = mlx_lm.generate(model, tokenizer, prompt=formatted_prompt, max_tokens=2048, verbose=False,
+                                       sampler=gen_sampler, logits_processors=gen_logits_processors)
 
             # Clear intermediate caches immediately
             try:
@@ -227,7 +351,12 @@ def generate_intelligence(final_segments, folder_path, user_name="Me"):
             try:
                 parsed_chunk = json.loads(clean_chunk_resp)
             except Exception:
-                log_diagnostic(folder_path, f"[WARNING] Chunk {idx} JSON parse failed; keeping raw segments as fallback.")
+                salvaged = salvage_json(clean_chunk_resp)
+                if isinstance(salvaged, dict):
+                    parsed_chunk = salvaged
+                    log_diagnostic(folder_path, f"[INFO] Chunk {idx} JSON was truncated/malformed; salvaged successfully.")
+                else:
+                    log_diagnostic(folder_path, f"[WARNING] Chunk {idx} JSON parse failed; keeping raw segments as fallback.")
 
             refined_sents = parsed_chunk.get("refined_sentences", [])
             if isinstance(refined_sents, list) and len(refined_sents) > 0:
@@ -291,7 +420,8 @@ def generate_intelligence(final_segments, folder_path, user_name="Me"):
             formatted_reduce_prompt = tokenizer.apply_chat_template(reduce_messages, tokenize=False, add_generation_prompt=True)  # type: ignore
 
             log_diagnostic(folder_path, "Running final synthesis pass across all section summaries...")
-            final_response = mlx_lm.generate(model, tokenizer, prompt=formatted_reduce_prompt, max_tokens=400, verbose=False)
+            final_response = mlx_lm.generate(model, tokenizer, prompt=formatted_reduce_prompt, max_tokens=1024, verbose=False,
+                                             sampler=gen_sampler, logits_processors=gen_logits_processors)
         else:
             final_response = response
 
@@ -314,11 +444,12 @@ def generate_intelligence(final_segments, folder_path, user_name="Me"):
         try:
             intelligence_data = json.loads(clean_response)
         except json.JSONDecodeError:
-            log_diagnostic(folder_path, "[WARNING] Direct JSON parsing failed, attempting fallback cleanup...")
-            clean_response_fixed = clean_response.replace(',\n}', '\n}').replace(',\n  }', '\n  }')
-            try:
-                intelligence_data = json.loads(clean_response_fixed)
-            except Exception:
+            log_diagnostic(folder_path, "[WARNING] Direct JSON parsing failed, attempting salvage...")
+            salvaged = salvage_json(clean_response)
+            if isinstance(salvaged, dict):
+                intelligence_data = salvaged
+                log_diagnostic(folder_path, "[INFO] Final response JSON was truncated/malformed; salvaged successfully.")
+            else:
                 intelligence_data = {
                     "title": "Meeting Summary",
                     "notes": {
@@ -334,6 +465,16 @@ def generate_intelligence(final_segments, folder_path, user_name="Me"):
             title = "Meeting Summary"
 
         notes = intelligence_data.get("notes", "")
+        if not notes:
+            # Single-chunk path: intelligence_data is the MAP output, whose schema uses
+            # "summary" (a string) rather than "notes". Synthesize a notes object so
+            # summary.json isn't left empty on short meetings.
+            summary_text = str(intelligence_data.get("summary", "")).strip()
+            if summary_text:
+                notes = {
+                    "executive_summary": summary_text,
+                    "detailed_summary": [{"phase": "Full Call", "content": summary_text}]
+                }
         raw_items = intelligence_data.get("action_items", [])
 
         action_items = []
@@ -377,38 +518,41 @@ def generate_intelligence(final_segments, folder_path, user_name="Me"):
         log_diagnostic(folder_path, traceback.format_exc())
 
 def transcribe_audio_file_windowed(audio_path, model_name, folder_path):
-    duration = 0.0
-    info = None
+    # Anti-hallucination kwargs applied to every Whisper pass (Part C1):
+    #  - condition_on_previous_text=False stops silence repeat-loops (junk fed back as context)
+    #  - hallucination_silence_threshold=2.0 skips detected silent stretches (needs word_timestamps)
+    transcribe_kwargs = dict(
+        path_or_hf_repo=model_name,
+        word_timestamps=True,
+        condition_on_previous_text=False,
+        hallucination_silence_threshold=2.0,
+    )
+
+    # Decode once via mlx_whisper's ffmpeg-backed loader. This works even where torchaudio's
+    # native backend is unavailable, gives an accurate duration for headerless streaming WebM
+    # (whose container reports no duration), and lets us slice long calls in-memory.
     try:
-        import torchaudio
-        info = torchaudio.info(audio_path)
-        duration = info.num_frames / info.sample_rate
-    except Exception as info_err:
-        log_diagnostic(folder_path, f"[WARNING] Could not read audio duration for {os.path.basename(audio_path)}: {info_err}")
+        audio = mlx_whisper.audio.load_audio(audio_path)
+    except Exception as load_err:
+        log_diagnostic(folder_path, f"[WARNING] Could not decode {os.path.basename(audio_path)} for duration check ({load_err}); transcribing whole file.")
+        return mlx_whisper.transcribe(audio_path, **transcribe_kwargs)
 
-    if info is not None and duration > 1800.0:  # > 30 minutes call
+    sr = mlx_whisper.audio.SAMPLE_RATE  # 16000
+    duration = len(audio) / sr
+
+    if duration > 1800.0:  # > 30 minutes call
         log_diagnostic(folder_path, f"Audio {os.path.basename(audio_path)} ({duration:.1f}s) > 30 mins. Running 15-minute windowed Whisper transcription...")
-        import torchaudio
-        window_sec = 900.0  # 15 minutes per slice
-        sample_rate = info.sample_rate
-        total_frames = info.num_frames
-        window_frames = int(window_sec * sample_rate)
-
-        frame_offset = 0
-        win_index = 0
+        window_samples = int(900.0 * sr)  # 15 minutes per slice
         all_window_segments = []
+        win_index = 0
 
-        while frame_offset < total_frames:
-            frames_to_read = min(window_frames, total_frames - frame_offset)
-            offset_sec = frame_offset / sample_rate
+        for start in range(0, len(audio), window_samples):
+            chunk = audio[start:start + window_samples]
+            offset_sec = start / sr
 
-            log_diagnostic(folder_path, f"Transcribing Whisper window {win_index + 1} ({offset_sec/60:.1f}m - {(offset_sec + frames_to_read/sample_rate)/60:.1f}m)...")
-            sig_chunk, sr = torchaudio.load(audio_path, frame_offset=frame_offset, num_frames=frames_to_read)
-            tmp_wav = os.path.join(folder_path, f"_temp_whisper_{os.path.basename(audio_path)}_{win_index}.wav")
-            torchaudio.save(tmp_wav, sig_chunk, sr)
-
+            log_diagnostic(folder_path, f"Transcribing Whisper window {win_index + 1} ({offset_sec/60:.1f}m - {(offset_sec + len(chunk)/sr)/60:.1f}m)...")
             try:
-                res = mlx_whisper.transcribe(tmp_wav, path_or_hf_repo=model_name, word_timestamps=True)
+                res = mlx_whisper.transcribe(chunk, **transcribe_kwargs)
                 for seg in res.get("segments", []):
                     seg["start"] = float(seg.get("start", 0.0)) + offset_sec
                     seg["end"] = float(seg.get("end", 0.0)) + offset_sec
@@ -416,23 +560,18 @@ def transcribe_audio_file_windowed(audio_path, model_name, folder_path):
             except Exception as win_err:
                 log_diagnostic(folder_path, f"[WARNING] Whisper window {win_index} failed: {win_err}")
             finally:
-                if os.path.exists(tmp_wav):
-                    try:
-                        os.remove(tmp_wav)
-                    except Exception:
-                        pass
                 try:
                     mx.metal.clear_cache()
                 except Exception:
                     pass
                 gc.collect()
 
-            frame_offset += window_frames
             win_index += 1
 
         return {"segments": all_window_segments}
     else:
-        return mlx_whisper.transcribe(audio_path, path_or_hf_repo=model_name, word_timestamps=True)
+        # Pass the already-decoded array to avoid a second ffmpeg decode.
+        return mlx_whisper.transcribe(audio, **transcribe_kwargs)
 
 def main(folder_path, user_name="Me"):
     try:
@@ -578,35 +717,32 @@ def main(folder_path, user_name="Me"):
                 # SPEECHBRAIN_CACHE env var (set at top of file) redirects model downloads to ~/.cognitocall/pretrained_models
                 diar = Diarizer(embed_model='xvec', cluster_method='sc')
                 
-                # Check audio duration for long call windowing strategy
-                tab_duration = 0.0
-                info = None
+                # Check audio duration for long call windowing strategy.
+                # Decode via mlx_whisper's ffmpeg loader (torchaudio-free; also works on
+                # headerless streaming WebM whose container reports no duration).
+                tab_audio = None
                 try:
-                    import torchaudio
-                    info = torchaudio.info(tab_path)
-                    tab_duration = info.num_frames / info.sample_rate
+                    tab_audio = mlx_whisper.audio.load_audio(tab_path)
                 except Exception as info_err:
-                    log_diagnostic(folder_path, f"[WARNING] Could not check tab audio duration: {info_err}")
+                    log_diagnostic(folder_path, f"[WARNING] Could not decode tab audio for duration check ({info_err}); diarizing whole file.")
 
-                if info is not None and tab_duration > 1800.0:  # > 30 minutes call
+                sr = mlx_whisper.audio.SAMPLE_RATE  # 16000
+                tab_duration = (len(tab_audio) / sr) if tab_audio is not None else 0.0
+
+                if tab_audio is not None and tab_duration > 1800.0:  # > 30 minutes call
                     log_diagnostic(folder_path, f"Audio duration ({tab_duration:.1f}s) > 30 mins; running windowed diarization...")
-                    import torchaudio
-                    window_sec = 900.0  # 15 minutes per slice
-                    sample_rate = info.sample_rate
-                    total_frames = info.num_frames
-                    window_frames = int(window_sec * sample_rate)
-                    
-                    frame_offset = 0
+                    window_samples = int(900.0 * sr)  # 15 minutes per slice
                     win_index = 0
-                    while frame_offset < total_frames:
-                        frames_to_read = min(window_frames, total_frames - frame_offset)
-                        offset_sec = frame_offset / sample_rate
-                        
-                        log_diagnostic(folder_path, f"Diarizing window {win_index + 1} ({offset_sec/60:.1f}m - {(offset_sec + frames_to_read/sample_rate)/60:.1f}m)...")
-                        sig_chunk, sr = torchaudio.load(tab_path, frame_offset=frame_offset, num_frames=frames_to_read)
+
+                    for start in range(0, len(tab_audio), window_samples):
+                        chunk = tab_audio[start:start + window_samples]
+                        offset_sec = start / sr
+
+                        log_diagnostic(folder_path, f"Diarizing window {win_index + 1} ({offset_sec/60:.1f}m - {(offset_sec + len(chunk)/sr)/60:.1f}m)...")
                         tmp_wav_path = os.path.join(folder_path, f"_temp_diar_{win_index}.wav")
-                        torchaudio.save(tmp_wav_path, sig_chunk, sr)
-                        
+                        # 16kHz mono PCM WAV — universally readable, no ffmpeg needed to read back.
+                        soundfile.write(tmp_wav_path, chunk, sr, subtype="PCM_16")
+
                         try:
                             sub_diar = diar.diarize(tmp_wav_path, num_speakers=None, threshold=0.20)
                             for ds in sub_diar:
@@ -622,8 +758,7 @@ def main(folder_path, user_name="Me"):
                                     os.remove(tmp_wav_path)
                                 except Exception:
                                     pass
-                        
-                        frame_offset += window_frames
+
                         win_index += 1
                 else:
                     diar_segments = diar.diarize(tab_path, num_speakers=None, threshold=0.20)
@@ -695,9 +830,16 @@ def main(folder_path, user_name="Me"):
         
         final_segments = []
         seg_counter = 0
+        dropped_hallucinations = 0
         for seg in all_segments:
             text_val = seg.get("text", "").strip()
             if not text_val:
+                continue
+            # Drop Whisper silence-hallucination junk (repeat-loops / no-speech) before it
+            # reaches transcript.json and the LLM. Restricted to Whisper sources so that
+            # captions/other sources always pass through.
+            if seg.get("source") in ("mic", "tab") and is_hallucinated_segment(seg):
+                dropped_hallucinations += 1
                 continue
             final_seg = {
                 "id": f"seg_{seg_counter}",
@@ -721,6 +863,9 @@ def main(folder_path, user_name="Me"):
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump({"segments": final_segments}, f, indent=2, ensure_ascii=False)
             
+        if dropped_hallucinations:
+            log_diagnostic(folder_path, f"Dropped {dropped_hallucinations} hallucinated/no-speech segment(s) before intelligence generation.")
+
         merge_time = time.perf_counter() - t_start
         log_diagnostic(folder_path, f"[TIMER] Merging, sorting and saving JSON took: {merge_time:.2f} seconds")
         

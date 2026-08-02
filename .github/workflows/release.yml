@@ -1,4 +1,4 @@
-name: Build & Publish Extension Release
+name: Build & Publish Release
 
 on:
   push:
@@ -56,6 +56,13 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Extract Desktop App Version
+        id: appversion
+        run: |
+          VERSION=$(jq -r '.version' cognito-desktop/src-tauri/tauri.conf.json)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Desktop app version: $VERSION"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -75,8 +82,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: 'cognito-desktop'
-          tagName: v${{ needs.build-and-release.outputs.version }}
-          releaseName: 'Cognito Call v${{ needs.build-and-release.outputs.version }}'
+          # Desktop app is versioned independently of the extension: derive its release
+          # tag/name from the app's own version (tauri.conf.json), not the manifest.
+          tagName: desktop-v${{ steps.appversion.outputs.version }}
+          releaseName: 'Cognito Call Desktop v${{ steps.appversion.outputs.version }}'
           releaseBody: 'Cognito Call local AI desktop application bundle for macOS.'
           releaseDraft: false
           prerelease: false

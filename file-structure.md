@@ -47,13 +47,18 @@ cognito-call/
 │   │   ├── Logo.svg
 │   │   └── Logo_icon.svg              # Primary brand logo vector asset
 │   ├── python/
-│   │   └── transcriber.py             # MLX Whisper & Gemma Map-Reduce pipeline (cognito-assistant)
+│   │   ├── transcriber.py             # MLX Whisper & Gemma Map-Reduce pipeline (cognito-assistant)
+│   │   ├── requirements.txt           # Python dependency list (source of truth for the installers)
+│   │   └── legacy_pytorch_archive/    # Deprecated PyTorch + WhisperX pipeline (superseded by MLX)
 │   ├── src/
+│   │   ├── assets/                    # Static frontend assets
 │   │   ├── components/
 │   │   │   ├── Player.tsx             # Karaoke player & Fullscreen media player
 │   │   │   └── OnboardingModal.tsx    # First-time user name onboarding modal
 │   │   ├── App.tsx                    # Main navigation, session gallery, Escape listener
+│   │   ├── App.css
 │   │   ├── index.css
+│   │   ├── vite-env.d.ts
 │   │   └── main.tsx
 │   ├── src-tauri/
 │   │   ├── icons/                     # Generated native icons (.icns, .ico, PNGs)
@@ -63,7 +68,8 @@ cognito-call/
 │   │   ├── tauri.conf.json
 │   │   └── Cargo.toml
 │   ├── package.json
-│   └── tsconfig.json
+│   ├── tsconfig.json
+│   └── README.md                      # Desktop subsystem build/run notes
 ├── tests/                             # E2E test scripts
 │   └── extension.spec.js
 ├── pyrightconfig.json

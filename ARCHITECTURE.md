@@ -24,8 +24,8 @@ The Chrome extension acts as the primary recording mechanism. It is built using 
 1. **Dual Capture:** When the user clicks record, the extension captures two separate audio streams: the remote participants' audio (`tabCapture`) and the user's local microphone (`getUserMedia`).
 2. **Audio Isolation (The Genius Move):** Instead of mixing these streams, the extension creates **three** distinct MediaRecorders running in parallel:
    - `video.webm` (Video + Mixed Audio)
-   - `tab.webm` (Remote Audio only)
-   - `mic.webm` (Local Microphone only)
+   - `tab.opus` (Remote Audio only)
+   - `mic.opus` (Local Microphone only)
 3. **Session Packaging:** It automatically generates a timestamped directory (e.g., `~/Downloads/CognitoCall/2026-05-19_10-30-00/`) and saves the files into it.
 4. **Large File Handling (64MB Bypass):** Manifest V3 imposes a ~64MB limit on IPC messages (`chrome.runtime.sendMessage`). Instead of Base64 encoding massive video files (which causes silent failures on 30+ minute recordings), the offscreen document generates a localized `blob:chrome-extension://` URL. It passes this tiny URL string to the service worker, which then leverages `chrome.downloads.download` to pull the gigabytes of data directly from memory.
 5. **Local Unmuting:** Chrome inherently mutes the tab when `tabCapture` is active. The extension circumvents this by piping the `tabAudioStream` into a hidden `<audio>` element within the offscreen document, allowing the user to hear the meeting normally.
@@ -73,12 +73,12 @@ A 100% offline intelligence engine powered by Apple-native MLX frameworks (`mlx-
  ### Key Tools:
  - **mlx-whisper** (Apple-native transcription & word-level alignment using MLX)
  - **simple-diarizer** (Spectral Clustering for Speaker Identification)
- - **FFmpeg / Torchaudio** (Audio Extraction)
+ - **FFmpeg / soundfile** (Audio decoding via mlx-whisper + 16 kHz WAV slicing; `torchaudio` is pulled in by `simple-diarizer` for its internal audio I/O)
  - **psutil** (Hardware Telemetry Monitoring)
  
  ### How it works:
- 1. **Transcription:** mlx-whisper transcribes both `mic.webm` and `tab.webm` separately, generating exact millisecond timestamps for every spoken word.
- 2. **Token-Free Diarization:** Instead of relying on gated models like Pyannote (which require HuggingFace API tokens and Accept-Terms agreements), the pipeline uses `simple-diarizer`. It runs a Spectral Clustering mathematical algorithm exclusively on `tab.webm` to separate the remote voices into "Speaker 1", "Speaker 2", etc.
+ 1. **Transcription:** mlx-whisper transcribes both `mic.opus` and `tab.opus` separately (falling back to `.webm` if present), generating exact millisecond timestamps for every spoken word.
+ 2. **Token-Free Diarization:** Instead of relying on gated models like Pyannote (which require HuggingFace API tokens and Accept-Terms agreements), the pipeline uses `simple-diarizer`. It runs a Spectral Clustering mathematical algorithm exclusively on `tab.opus` to separate the remote voices into "Speaker 1", "Speaker 2", etc.
  3. **Custom Stitcher:** The script merges the locally transcribed microphone array ("Me") with the diarized remote array ("Speaker X"), sorts all the words chronologically, and compiles them into a unified `transcript.json`.
  4. **Security & Backward Compatibility Patches:** The script contains compatibility monkeypatches for SpeechBrain/HuggingFace libraries to bypass legacy argument conflicts and ensure flawless loading on modern systems.
  5. **Black-Box Diagnostic Logger:** An integrated diagnostics module creates/appends to a `diagnostic.log` file inside the processed folder. It captures initial file metrics, execution timing metrics per phase (`time.perf_counter()`), and system-wide + process-specific hardware resources (CPU, RAM used/total) at baseline, peak, and post-cleanup.
@@ -160,6 +160,18 @@ Check total disk space consumed by downloaded quantized MLX models (Whisper + Ge
 ```bash
 du -sh ~/.cache/huggingface/hub/models--mlx-community*
 ```
+
+### 6. Repair Legacy WebM Metadata (Duration & Seeking)
+New recordings are already repaired in-browser by the extension's `webm-fixer.js` (it injects the missing `Duration` header and `Cues` keyframe index the moment a recording stops). But **older sessions captured before that fix** — or any raw `MediaRecorder` `.webm`/audio file — still report `Duration: N/A` and cannot be scrubbed in players like QuickTime or VLC. This one-liner losslessly remuxes every recording in your `CognitoCall` downloads folder in place to restore the headers (a fast stream copy — `-c copy` — so nothing is re-encoded and no quality is lost):
+
+```bash
+find ~/Downloads/CognitoCall -name "*.webm" | while read f; do
+  echo "Fixing: $f"
+  ffmpeg -nostdin -y -i "$f" -c copy "${f%.webm}_fixed.webm" && mv "${f%.webm}_fixed.webm" "$f" && echo "Done: $f"
+done
+```
+
+> **Why `-nostdin`?** `ffmpeg` reads from standard input by default. Inside a `while read` loop that would let it swallow characters from the *next* filename on the list, silently skipping files with a "No such file or directory" error. `-nostdin` stops `ffmpeg` from touching the loop's input so every file is processed. The `&&` chain guarantees the original is only overwritten after a successful remux — if `ffmpeg` fails on any file, that original is left untouched.
 
 ---
 

@@ -31,7 +31,9 @@ RELEASE_URL=$(curl -s "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/r
 
 # Fallback to .dmg or tar.gz if needed
 if [ -z "$RELEASE_URL" ]; then
-  RELEASE_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download/CognitoCall.app.tar.gz"
+  # GitHub replaces spaces in release-asset filenames with periods, so the tauri bundle
+  # "Cognito Call.app.tar.gz" is served as "Cognito.Call.app.tar.gz".
+  RELEASE_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download/Cognito.Call.app.tar.gz"
 fi
 
 TEMP_DIR=$(mktemp -d)
@@ -65,6 +67,7 @@ mkdir -p "$DATA_DIR/models"
 mkdir -p "$DATA_DIR/python"
 mkdir -p "$DATA_DIR/bin"
 curl -fsSL "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/cognito-desktop/python/transcriber.py" -o "$DATA_DIR/python/transcriber.py" 2>/dev/null || cp -f cognito-desktop/python/transcriber.py "$DATA_DIR/python/transcriber.py" 2>/dev/null || true
+curl -fsSL "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/cognito-desktop/python/requirements.txt" -o "$DATA_DIR/python/requirements.txt" 2>/dev/null || cp -f cognito-desktop/python/requirements.txt "$DATA_DIR/python/requirements.txt" 2>/dev/null || true
 
 # Install FFmpeg if missing globally
 if ! command -v ffmpeg &>/dev/null; then
@@ -93,10 +96,21 @@ if command -v python3 &>/dev/null; then
     python3 -m venv "$DATA_DIR/venv"
   fi
   source "$DATA_DIR/venv/bin/activate"
-  echo "Installing Python dependencies (mlx-whisper, mlx-lm, simple-diarizer, torchaudio, torchcodec, psutil)..."
-  if ! pip install mlx-whisper mlx-lm simple-diarizer torchaudio torchcodec psutil; then
-    echo "⚠️ Warning: Failed to install Python dependencies. Make sure python3-pip is configured and active."
+  # Upgrade pip first: venvs are seeded with the system Python's bundled pip (often years old),
+  # which can mis-resolve or fail on modern wheels. Non-fatal.
+  echo "Upgrading pip inside the virtual environment..."
+  python -m pip install --upgrade pip || true
+  echo "Installing Python dependencies from requirements.txt..."
+  REQ_FILE="$DATA_DIR/python/requirements.txt"
+  if [ -f "$REQ_FILE" ]; then
+    pip install -r "$REQ_FILE" || echo "⚠️ Warning: Failed to install Python dependencies from requirements.txt."
+  else
+    # Fallback if requirements.txt could not be fetched: install the same set explicitly.
+    pip install mlx-whisper mlx-lm simple-diarizer speechbrain==0.5.16 "huggingface-hub<1.0" soundfile psutil setproctitle \
+      || echo "⚠️ Warning: Failed to install Python dependencies."
   fi
+  # torchcodec is only needed by newer torchaudio (>=2.9) as its audio load backend; best-effort.
+  pip install torchcodec 2>/dev/null || true
 fi
 
 echo "======================================================"

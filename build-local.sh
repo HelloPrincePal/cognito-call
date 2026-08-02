@@ -31,6 +31,26 @@ mkdir -p "$DATA_DIR/models"
 mkdir -p "$DATA_DIR/python"
 mkdir -p "$DATA_DIR/bin"
 cp -f cognito-desktop/python/transcriber.py "$DATA_DIR/python/transcriber.py"
+cp -f cognito-desktop/python/requirements.txt "$DATA_DIR/python/requirements.txt"
+
+# Set up the local Python AI environment (venv + dependencies from requirements.txt).
+# Without this the built app has no Python runtime to transcribe with.
+if command -v python3 &>/dev/null; then
+  if [ ! -d "$DATA_DIR/venv" ]; then
+    echo "Creating Python virtual environment..."
+    python3 -m venv "$DATA_DIR/venv"
+  fi
+  source "$DATA_DIR/venv/bin/activate"
+  # Upgrade pip first: venvs are seeded with the system Python's bundled pip (often years old),
+  # which can mis-resolve or fail on modern wheels. Non-fatal.
+  echo "Upgrading pip inside the virtual environment..."
+  python -m pip install --upgrade pip || true
+  echo "Installing Python dependencies from requirements.txt..."
+  pip install -r cognito-desktop/python/requirements.txt || echo "⚠️ Warning: Failed to install Python dependencies."
+  # torchcodec is only needed by newer torchaudio (>=2.9) as its audio load backend; best-effort.
+  pip install torchcodec 2>/dev/null || true
+  deactivate 2>/dev/null || true
+fi
 
 # Install FFmpeg if missing globally
 if ! command -v ffmpeg &>/dev/null; then

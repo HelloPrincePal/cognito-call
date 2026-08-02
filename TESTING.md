@@ -56,7 +56,7 @@ Use this document to log your findings while stress-testing the Cognito Call rec
 | **Background Noise**| Play music or type loudly while speaking. | Whisper ignores noise / Chrome suppresses echo. | |
 | **Mid-Process Kill** | Start processing, then instantly quit the Tauri app. | Python process terminates; no zombie processes in Activity Monitor. | |
 | **Spam UI** | Spam click "Reload App" while processing is running. | App reloads safely; processing continues or fails gracefully. | |
-| **Missing Files** | Manually delete `tab.webm` from folder, click generate. | Pipeline detects missing file and aborts gracefully. | |
+| **Missing Files** | Manually delete `tab.opus` from folder, click generate. | Pipeline detects missing file and aborts gracefully. | |
 
 *Notes on Stability:*
 > [Type findings here: Did anything cause the app to completely freeze? Did any zombie processes survive?]

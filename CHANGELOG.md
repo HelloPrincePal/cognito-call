@@ -2,6 +2,50 @@
 
 ---
 
+## [2026-08-02 08:54 IST]
+
+> **No version bump.** This is a code-cleanup / reliability pass, not a user-facing app change, so the app version is intentionally unchanged (see the *Versioning Policy* in `VERSION_LOG.md` — the changelog logs every change; version numbers only move on meaningful app/extension releases).
+
+### 💡 Summary
+Repaired the local AI intelligence layer and hardened the audio pipeline in `transcriber.py`. Fixed **truncated-JSON parse failures** and **Gemma-2b repeat-loops** that were leaving `summary.json` empty on every run, made Whisper/diarization **audio windowing fully torchaudio-independent** (it was crashing on runtime devices where torchaudio's native backend fails to load), and added **silence-hallucination filtering** so quiet stretches in real meetings no longer flood the transcript and summary with junk. All four fixes were verified end-to-end on a real session recording.
+
+### 🚀 Detailed Enhancements & Fixes
+- **LLM JSON Truncation Fixed (`transcriber.py`):** Raised `max_tokens` on the two `mlx_lm.generate()` calls from `384 → 2048` (map/refine stage) and `400 → 1024` (reduce/synthesis stage). The old limits cut Gemma off mid-JSON, so **every** chunk logged `JSON parse failed` and fell back to raw, unrefined segments (bloating `transcript.json` to thousands of hallucinated fragments) while the summary was fed truncated-JSON garbage.
+- **Truncation-Safe JSON Salvage (`salvage_json()`):** New best-effort recovery helper that parses a leading JSON object (ignoring trailing prose via `JSONDecoder.raw_decode`), strips trailing commas, closes dangling strings, and re-balances unclosed `{`/`[` brackets. Wired in ahead of the existing fallbacks at both parse sites, so a clipped response is recovered instead of discarded.
+- **Gemma-2b Repeat-Loop Fixed (`mlx_lm` sampler):** Added `sampler=make_sampler(temp=0.3)` and `logits_processors=make_logits_processors(repetition_penalty=1.3, repetition_context_size=64)` to both generate calls. Without a repetition penalty the small 4-bit model degenerated into loops (e.g. emitting `"Yes."` hundreds of times) that consumed the entire token budget before ever writing the `summary`/`action_items` — leaving `summary.json` empty even after the `max_tokens` bump. Verified: same input went from an empty summary to a coherent executive summary + action item.
+- **Consecutive-Duplicate Collapse (`collapse_consecutive_duplicates()`):** Runs of identical same-speaker back-channel (`"Yes."` ×40) are merged into one segment before the LLM prompt is built, removing the repetitive input that triggered the loop (44 → 11 segments on the test session) while preserving the timeline.
+- **Single-Chunk Notes Fix:** On short (single-chunk) meetings the reduce stage is skipped and the map output — whose schema uses `"summary"` not `"notes"` — was read straight into `summary.json`, producing empty notes. Now synthesizes a proper `notes` object (`executive_summary` + `detailed_summary`) from the map `summary` when `notes` is absent.
+- **torchaudio-Free Audio Windowing (`transcriber.py`):** Replaced `torchaudio.info` / `torchaudio.load` / `torchaudio.save` in both the Whisper transcription and diarization windowing paths with `mlx_whisper.audio.load_audio` (ffmpeg-backed, always available) for duration + in-memory slicing, and `soundfile.write(..., subtype="PCM_16")` for diarization temp WAVs. The old code threw `module 'torchaudio' has no attribute 'info'` on runtime devices where torchaudio's native backend does not load (disabling every duration check), and would have crashed outright on `torchaudio.load`/`save` if a >30-minute call ever triggered the windowed path. Also correctly measures duration for headerless streaming WebM (MediaRecorder output reports `Duration: N/A`), which no container-header probe can read.
+- **Silence-Hallucination Hardening (`transcriber.py`):** Set `condition_on_previous_text=False` (stops Whisper feeding hallucinated text back as context in an infinite loop) and `hallucination_silence_threshold=2.0` (skips detected silent stretches) on both transcription passes. Added `is_hallucinated_segment()` — a conservative filter (high `no_speech_prob`, or degenerate low-unique-token repetition) applied only to Whisper (`mic`/`tab`) sources in the merge loop — which dropped 33 junk segments on the test session while leaving genuine short affirmations ("yeah, yeah") intact. Captions and AI-refined segments always pass through untouched.
+
+- **Legacy WebM Repair Command Documented (`ARCHITECTURE.md`):** Added a "Repair Legacy WebM Metadata" maintenance command under Developer Diagnostics. New recordings are already fixed in-browser by `webm-fixer.js`, but sessions captured before that fix (or any raw `MediaRecorder` output) still report `Duration: N/A` and cannot be scrubbed. The documented one-liner losslessly remuxes every `.webm` in `~/Downloads/CognitoCall` in place (`ffmpeg -nostdin -c copy`) to restore the `Duration`/`Cues` headers. Note the `-nostdin` flag: without it, `ffmpeg` swallows the `while read` loop's stdin and silently skips files (observed corrupting/skipping 2 of 18 files in testing).
+- **Versioning Policy Documented (`VERSION_LOG.md`):** Added an explicit policy clarifying that (a) the Chrome Extension and the Desktop App are versioned on **independent tracks** and are not expected to share a number, and (b) `CHANGELOG.md` is a running log of **all** changes — a changelog entry does not require or imply a version bump; versions advance only on meaningful app/extension releases. This entry itself is an example: logged, but no version change.
+- **Project Consistency Sweep (docs / installers / CI):** Fixed a set of doc-vs-code and config mismatches surfaced by a full-project audit:
+  - **`ARCHITECTURE.md`** — corrected the recorded filenames to `tab.opus` / `mic.opus` (they were listed as `.webm`) in the extension and pipeline sections, and rewrote the audio-tooling line: decoding is FFmpeg-via-mlx-whisper + `soundfile` WAV slicing, with `torchaudio` noted as `simple-diarizer`'s transitive dependency (it is no longer used directly by `transcriber.py`).
+  - **`install.sh` / `build-local.sh`** — both now install Python deps via `pip install -r requirements.txt` (single source of truth) instead of a hardcoded, divergent list. This restores the missing `soundfile` (now load-bearing for diarization WAV slices) and the dropped `speechbrain==0.5.16` / `huggingface-hub<1.0` pins; `build-local.sh` previously created **no** Python venv and installed **no** deps at all. `torchcodec` is retained as a non-fatal best-effort install (only newer `torchaudio` needs it). Also corrected the `.app.tar.gz` fallback asset name (GitHub serves the bundle as `Cognito.Call.app.tar.gz`).
+  - **`requirements.txt`** — added `setproctitle` (used to set the `cognito-assistant` process name) and a comment noting `torchaudio` arrives via `simple-diarizer`.
+  - **pip self-upgrade in installers (`install.sh` / `build-local.sh`):** both now run `python -m pip install --upgrade pip` (non-fatal) right after creating the venv, before installing dependencies. Fresh venvs are seeded with the system Python's bundled pip — on macOS Command Line Tools Python 3.9 that's pip 21.2.4 (2021), which prints a self-outdated warning and, more importantly, can mis-resolve or fail on modern wheels. This removes the warning and gives every install pip's current dependency resolver.
+  - **`.github/workflows/release.yml`** — the macOS desktop release now derives its tag/name from the app's own version (`tauri.conf.json` → `desktop-v…`) instead of reusing the extension's `manifest.json` version, keeping the two independent version tracks from being conflated in the published release.
+  - **`file-structure.md`** — added the previously-undocumented `requirements.txt`, `legacy_pytorch_archive/`, `cognito-desktop/README.md`, and a few `src/` files to the tree.
+  - **`TESTING.md`** — corrected the "Missing Files" test case to reference `tab.opus` (was `tab.webm`).
+
+### ✅ Verification
+Ran the full pipeline on a real session (`~/Downloads/CognitoCall/2026-07-23…`, copied to a scratch folder): no `JSON parse failed` and no `torchaudio` warnings; `Dropped 33 hallucinated/no-speech segment(s)`; both salvage sites recovered truncated JSON; and after the repetition penalty, `summary.json` produced a coherent summary + action item (vs. empty before). Helper functions (`salvage_json`, `is_hallucinated_segment`, `collapse_consecutive_duplicates`) covered by standalone unit checks. Separately, remuxed all 18 legacy `.webm` recordings — every file now reports a valid duration (0 remaining `N/A`).
+
+### 📄 Changed Files
+- `cognito-desktop/python/transcriber.py`
+- `cognito-desktop/python/requirements.txt`
+- `ARCHITECTURE.md`
+- `VERSION_LOG.md`
+- `file-structure.md`
+- `TESTING.md`
+- `install.sh`
+- `build-local.sh`
+- `.github/workflows/release.yml`
+- `CHANGELOG.md`
+
+---
+
 ## [2026-08-01 21:30 IST] - v1.2.0
 
 ### 💡 Summary

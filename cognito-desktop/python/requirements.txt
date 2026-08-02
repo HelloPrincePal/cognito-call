@@ -1,7 +1,9 @@
 mlx-whisper
+mlx-lm
+# simple-diarizer pulls in torch + torchaudio, which it uses for diarization audio I/O
 simple-diarizer
 speechbrain==0.5.16
 huggingface-hub<1.0
 psutil
 soundfile
-mlx-lm
+setproctitle

@@ -11,6 +11,12 @@ We follow the **X.Y.Z** semantic versioning format:
 - **Y (Minor/Architecture):** Major updates to core structure, architecture, or significant new features.
 - **Z (Patch/Bugfix):** Small fixes, UI tweaks, or minor logic improvements.
 
+## 🔀 Independent Version Tracks
+The **Chrome Extension** and the **Desktop App** are separate products and are versioned on **independent tracks**. They are *not* expected to share a version number — the extension may sit at `v0.7.1` while the desktop app is on its own line. Do not try to "sync" them; each advances only when *that* component ships a meaningful change.
+
+## 📝 Changelog ≠ Version Bump
+`CHANGELOG.md` is a running log of **every** change — features, fixes, refactors, cleanups, and documentation edits alike. **A changelog entry does not require or imply a version bump.** Version numbers move **only** when a meaningful change ships in the app or extension itself. Routine code cleanups, internal reliability fixes, doc updates, and dependency housekeeping are logged in the changelog but deliberately leave the version untouched. This Version Log tracks the milestone releases; the changelog tracks everything.
+
 ---
 
 | Version | Date | Summary | Key Impact |
