@@ -63,7 +63,7 @@ Install both. Requirements: **macOS on Apple Silicon** (M-series) and **Google C
 2. If it's still a `.zip`, double-click to extract it.
 3. Open Chrome and go to `chrome://extensions`.
 4. Turn on **Developer mode** (top-right toggle).
-5. Click **Load unpacked** (top-left) and select the unzipped `packages/extension` folder.
+5. Click **Load unpacked** (top-left) and select the extracted `cognito-call-extension` folder (the one that contains `manifest.json` at its root).
 6. Click the Cognito Call icon in the toolbar and **grant microphone permission** when prompted.
 
 > 📖 Want to know exactly what it captures and how? See **[How the Extension Works](#how-the-extension-works)**.
