@@ -59,7 +59,7 @@ Install both. Requirements: **macOS on Apple Silicon** (M-series) and **Google C
 
 ### Step 1 — Chrome Extension
 
-1. Download the latest **[cognito-call-extension.zip](https://github.com/HelloPrincePal/cognito-call/releases/latest/download/cognito-call-extension.zip)**. *(macOS Safari auto-expands `.zip` files into a folder on download.)*
+1. Download the latest **[cognito-call-extension.zip](https://github.com/HelloPrincePal/cognito-call/releases/download/v0.7.1/cognito-call-extension.zip)**. *(macOS Safari auto-expands `.zip` files into a folder on download.)*
 2. If it's still a `.zip`, double-click to extract it.
 3. Open Chrome and go to `chrome://extensions`.
 4. Turn on **Developer mode** (top-right toggle).
@@ -180,7 +180,7 @@ curl -fsSL https://raw.githubusercontent.com/HelloPrincePal/cognito-call/main/in
 git pull && ./build-local.sh
 ```
 
-**Extension:** re-download the [latest zip](https://github.com/HelloPrincePal/cognito-call/releases/latest/download/cognito-call-extension.zip), extract it over your existing folder, then click 🔄 **Reload** on the card at `chrome://extensions`.
+**Extension:** re-download the [latest zip](https://github.com/HelloPrincePal/cognito-call/releases/download/v0.7.1/cognito-call-extension.zip), extract it over your existing folder, then click 🔄 **Reload** on the card at `chrome://extensions`.
 
 ### Uninstall / free up disk
 

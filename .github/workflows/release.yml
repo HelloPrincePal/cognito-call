@@ -49,6 +49,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Share the extension zip with the desktop job so it can attach it to
+      # the desktop release — this ensures /releases/latest/ always resolves
+      # to a release that carries cognito-call-extension.zip, regardless of
+      # which release stream (v* or desktop-v*) was published most recently.
+      - name: Upload Extension ZIP as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cognito-call-extension
+          path: cognito-call-extension.zip
+          retention-days: 1
+
   build-desktop-mac:
     runs-on: macos-latest
     needs: build-and-release
@@ -89,3 +100,19 @@ jobs:
           releaseBody: 'Cognito Call local AI desktop application bundle for macOS.'
           releaseDraft: false
           prerelease: false
+
+      # Download the extension zip built by the build-and-release job and attach
+      # it to this desktop release too. This means /releases/latest/ will always
+      # resolve to a release that has the extension asset, no matter which release
+      # stream was published most recently.
+      - name: Download Extension ZIP Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cognito-call-extension
+
+      - name: Attach Extension ZIP to Desktop Release
+        run: |
+          VERSION=${{ steps.appversion.outputs.version }}
+          gh release upload "desktop-v${VERSION}" cognito-call-extension.zip --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
