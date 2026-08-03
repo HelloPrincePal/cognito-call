@@ -41,7 +41,9 @@ CognitoCall/
 ._*
 .Spotlight-V100
 .Trashes
-Icon?
+# NOTE: do NOT re-add `Icon?` here. The `?` wildcard also matches the
+# `icons/` directory (case-insensitively on macOS), which silently drops
+# the extension's icons from git and breaks the packaged extension build.
 
 # 🪟 Windows
 Thumbs.db

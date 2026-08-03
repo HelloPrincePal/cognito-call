@@ -2,6 +2,32 @@
 
 ---
 
+## [2026-08-03 18:17 IST]
+
+> **No version bump.** Distribution / packaging fixes for the Chrome extension release; app and extension versions intentionally unchanged (see *Versioning Policy* in `VERSION_LOG.md`).
+
+### 💡 Summary
+Fixed two separate bugs that made the Chrome extension **impossible to download and load from the GitHub release**. First, the README's `…/releases/latest/download/cognito-call-extension.zip` link returned **404** because the independently-versioned desktop app release (`desktop-v*`) had become GitHub's "Latest" release and did not carry the extension zip. Second, once downloaded, the extension failed to load in Chrome with **"Could not load icon 'icons/icon16.png' … Could not load manifest"**, because a stray `.gitignore` pattern was silently excluding the extension's entire `icons/` directory from git — so the CI-built zip shipped with no icons.
+
+### 🚀 Detailed Enhancements & Fixes
+- **Extension download link 404 — extension zip absent from the "Latest" release (`.github/workflows/release.yml`):** The workflow publishes two independent release streams — `v*` (extension, carries `cognito-call-extension.zip`) and `desktop-v*` (macOS app bundle). GitHub's `/releases/latest/` redirect resolves to whichever release was published most recently, so once `desktop-v0.1.0` shipped it became "Latest" and the README's `latest/download/cognito-call-extension.zip` pointed at a release with no such asset → 404. Fixed by also attaching the extension zip to the desktop release: `build-and-release` now uploads `cognito-call-extension.zip` as a CI artifact, and `build-desktop-mac` downloads it and runs `gh release upload desktop-v${VERSION} cognito-call-extension.zip --clobber` after `tauri-action`. Now **whichever** stream is "Latest," that release always carries the extension zip, so `/releases/latest/download/` never breaks again.
+- **"Could not load manifest" — icons dropped from git by a wildcard `.gitignore` rule (`.gitignore`):** The macOS section contained `Icon?`, intended to ignore macOS's custom-folder-icon file (`Icon` + a carriage return). But `?` is a single-character glob wildcard and macOS git runs with `core.ignorecase=true`, so `Icon?` also matched the **`icons`** directory (`Icon` + `s`, case-insensitively). The entire `packages/extension/icons/` folder was therefore never committed; every other extension file was tracked. Because CI zips a clean checkout, the published `cognito-call-extension.zip` shipped without `icons/`, and Chrome rejects a manifest whose declared icons are missing. Removed the `Icon?` line (with an inline comment warning against re-adding it) so the three previously-ignored icon PNGs (`icon16.png`, `icon48.png`, `icon128.png`) become trackable and, once committed, ship inside the packaged zip.
+
+### 🔎 Root-cause notes (for reference)
+- The two bugs were independent but stacked: even after the link was fixed to serve a zip, that zip itself was defective. The icon bug was invisible during local development because the PNGs exist on disk (loading the source `packages/extension` folder as an unpacked extension worked); only the CI-built zip — a clean `git` checkout — exposed the missing `icons/`. Verified the offending pattern with `git check-ignore -v`, which reported `.gitignore:44:Icon?` matching each icon file.
+
+### ✅ Verification
+- **Link:** `curl -sIL …/releases/latest/download/cognito-call-extension.zip` now returns **HTTP 200** and serves the extension zip (previously 404); `gh api …/releases/latest` confirms the "Latest" release now lists `cognito-call-extension.zip` among its assets.
+- **Icons:** after editing `.gitignore`, `git check-ignore` reports all three icons as **trackable** (was: ignored), and `git status` lists `packages/extension/icons/` as ready to commit. A re-packaged zip built from the checkout contains `icons/icon16.png`, `icon48.png`, and `icon128.png`.
+
+### 📄 Changed Files
+- `.gitignore`
+- `.github/workflows/release.yml`
+- `packages/extension/icons/icon16.png`, `icon48.png`, `icon128.png` *(newly tracked)*
+- `CHANGELOG.md`
+
+---
+
 ## [2026-08-02 13:39 IST]
 
 > **No version bump.** Feature + quality hardening; app version intentionally unchanged (see *Versioning Policy* in `VERSION_LOG.md`).
